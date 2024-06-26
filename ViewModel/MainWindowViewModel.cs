@@ -1,21 +1,13 @@
 ﻿using HNice.Service;
+using HNice.Util;
 using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.IO;
-using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace HNice.ViewModel
 {
     public class MainWindowViewModel : BaseViewModel
     {
-        #region Events and delegates
-        public EventHandler OnScrollDownDec;
-        public EventHandler OnScrollDownEnc;
-        #endregion
         #region Properties
         private string _hotelAddress = "game-oes.habbo.com"; // By default we set Spain Address
         public string HotelAddress
@@ -68,26 +60,28 @@ namespace HNice.ViewModel
                 OnPropertyChanged(nameof(EncryptPackets));
             }
         }
-        private bool _pauseEncryptedPackets = false;
-        public bool PauseEncryptedPackets
+        
+        private bool _pauseInboundPackets = false;
+        public bool PauseInboundPackets
         {
-            get => _pauseEncryptedPackets;
+            get => _pauseInboundPackets;
             set
             {
-                _pauseEncryptedPackets= value;
-                OnPropertyChanged(nameof(PauseEncryptedPackets));
+                _pauseInboundPackets= value;
+                OnPropertyChanged(nameof(PauseInboundPackets));
             }
         }
-        private bool _pauseDecryptedPackets = false;
-        public bool PauseDecryptedPackets
+        private bool _pauseOutboundPackets = false;
+        public bool PauseOutboundPackets
         {
-            get => _pauseDecryptedPackets;
+            get => _pauseOutboundPackets;
             set
             {
-                _pauseDecryptedPackets = value;
-                OnPropertyChanged(nameof(PauseDecryptedPackets));
+                _pauseOutboundPackets = value;
+                OnPropertyChanged(nameof(PauseOutboundPackets));
             }
         }
+        
         private bool _isConnected = false;
         public bool IsConnected
         {
@@ -101,7 +95,7 @@ namespace HNice.ViewModel
         }
         public bool IsNotConnected { get => !_isConnected; }
 
-        public string? LocalHost { get; } = "127.0.0.1";
+        public string LocalHost { get; } = "127.0.0.1";
 
         private string _packetsToSend = string.Empty;
         public string PacketsToSend
@@ -113,40 +107,32 @@ namespace HNice.ViewModel
                 OnPropertyChanged(nameof(PacketsToSend));
             }
         }
+       
         // We store here the incoming/outgoing habbo packets and flush if necessary
-        public string PacketLogDecryptedForUI
+        private ObservableCollection<string> _packetLogInboundForUI = new ObservableCollection<string>();
+        public ObservableCollection<string> PacketLogInboundForUI
         {
-            get => _packetLogDecryptedForUI;
+            get => _packetLogInboundForUI;
             set
             {
-                if (_packetLogDecryptedForUI.Length > 12000)
-                {
-                    _packetLogDecryptedForUI = string.Empty;
-                }
-                _packetLogDecryptedForUI = value;
-                OnPropertyChanged(nameof(PacketLogDecryptedForUI));
+                    _packetLogInboundForUI = value;
+                OnPropertyChanged(nameof(PacketLogInboundForUI));
             }
         }
-        private string _packetLogEncryptedForUI = string.Empty;
-        public string PacketLogEncryptedForUI
+        private ObservableCollection<string> _packetLogOutboundForUI = new ObservableCollection<string>();
+        public ObservableCollection<string> PacketLogOutboundForUI
         {
-            get => _packetLogEncryptedForUI;
+            get => _packetLogOutboundForUI;
             set
             {
-                if (_packetLogEncryptedForUI.Length > 12000)
-                {
-                    _packetLogEncryptedForUI = string.Empty;
-                }
-                _packetLogEncryptedForUI = value;
-                OnPropertyChanged(nameof(PacketLogEncryptedForUI));
+                _packetLogOutboundForUI = value;
+                OnPropertyChanged(nameof(PacketLogOutboundForUI));
             }
         }
         // ---------------------------------------------------------------------------
 
         private CancellationTokenSource _cts;
         private readonly ILogger<MainWindowViewModel> _logger;
-
-        private string _packetLogDecryptedForUI = string.Empty;
         #endregion
 
         #region Commands
@@ -156,15 +142,13 @@ namespace HNice.ViewModel
         public ICommand SendToServerCommand { get; }
         #endregion
 
-        public void AddEncryptedLog(string log) 
+        public void AddInboundLog(string log) 
         {
-            PacketLogEncryptedForUI += log + Environment.NewLine + "---------------------------------------------------------------------------------" + Environment.NewLine;
-            OnScrollDownEnc?.Invoke(null, null);
+            PacketLogOutboundForUI.Add(log);
         }
-        public void AddDecryptedLog(string log)
+        public void AddOutbounddLog(string log)
         {
-            PacketLogDecryptedForUI += log + Environment.NewLine + "---------------------------------------------------------------------------------" + Environment.NewLine;
-            OnScrollDownDec?.Invoke(null, null);
+            PacketLogInboundForUI.Add(log);
         }
 
         public MainWindowViewModel(ITcpInterceptorWorker worker, ILogger<MainWindowViewModel> logger) : base(worker)
@@ -181,21 +165,21 @@ namespace HNice.ViewModel
         {
             _cts = new CancellationTokenSource();
             //First pair hotel address to localhost for packet hijacking
-            UpdateHostsFile();
+            HostEditor.UpdateHostsFile(LocalHost, HotelAddress);
             IsConnected = true;
-            Worker.OnAddEncryptedLog += AddEncryptedLog;
-            Worker.OnAddDecryptedLog += AddDecryptedLog;
+            Worker.OnAddInboundPacketLog += AddInboundLog;
+            Worker.OnAddOutboundPacketLog += AddOutbounddLog;
             await Worker.ExecuteAsync(HotelIP, InfoPort, InfoPort, _encryptPackets, _cts.Token);
         }
 
         private void OnDisconnect()
         {
             //Restore the hostfile as original
-            RestoreHostsFile();
+            HostEditor.RestoreHostsFile(LocalHost, HotelAddress);
             _cts.Cancel();
             IsConnected = false;
-            Worker.OnAddEncryptedLog -= AddEncryptedLog;
-            Worker.OnAddDecryptedLog -= AddDecryptedLog;
+            Worker.OnAddInboundPacketLog -= AddInboundLog;
+            Worker.OnAddOutboundPacketLog -= AddOutbounddLog;
         }
 
         private async Task OnSendToClient()
@@ -208,66 +192,6 @@ namespace HNice.ViewModel
         {
             await OnSendToServer(_packetsToSend);
             PacketsToSend = string.Empty;
-        }
-
-        //Utils, should move to another static class
-        public void UpdateHostsFile()
-        {
-            try
-            {
-                string hostsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers/etc/hosts");
-                string newLine = $"{LocalHost} {HotelAddress}";
-
-                if (!File.Exists(hostsFilePath))
-                {
-                    _logger.LogInformation("Hosts file not found.");
-                }
-
-                string[] lines = File.ReadAllLines(hostsFilePath);
-                if (Array.Exists(lines, line => line.Equals(newLine)))
-                {
-                    return;
-                }
-
-                using (StreamWriter sw = File.AppendText(hostsFilePath))
-                {
-                    sw.WriteLine(newLine);
-                }
-                _logger.LogInformation("Hosts file updated successfully.");
-
-            }
-            catch (Exception ex)
-            {
-                _logger.LogInformation($"Error updating hosts file: {ex.Message}");
-            }
-        }
-        public void RestoreHostsFile()
-        {
-            try
-            {
-                string hostsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers/etc/hosts");
-                string newLine = $"{LocalHost} {HotelAddress}";
-
-                if (!File.Exists(hostsFilePath))
-                {
-                    _logger.LogInformation("Hosts file not found.");
-                    return;
-                }
-
-                string[] lines = File.ReadAllLines(hostsFilePath);
-                bool lineExists = lines.Any(line => line.Trim().Equals(newLine, StringComparison.OrdinalIgnoreCase));
-
-                if (lineExists)
-                {
-                    lines = lines.Where(line => !line.Trim().Equals(newLine, StringComparison.OrdinalIgnoreCase)).ToArray();
-                    File.WriteAllLines(hostsFilePath, lines);
-                    _logger.LogInformation("Line removed from hosts file.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogInformation($"Error updating hosts file: {ex.Message}");
-            }
         }
 
     }

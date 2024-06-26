@@ -8,7 +8,7 @@ public interface IHabboRC4
     string Encipher(string data);
     string Decipher(string data);
 }
-public class HabboRC4 : IHabboRC4
+public class HabboRC4 : IHabboRC4 // Seems like decrypt is broken with new update
 {
     private string[] di = new string[16];
     private long[] table = new long[256];

@@ -3,10 +3,6 @@ using System.Net;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using HNice.Model;
-using System.Windows;
-using System.Threading;
-using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 using static HNice.Service.TcpInterceptorWorker;
 
 namespace HNice.Service;
@@ -19,8 +15,8 @@ public enum TrafficDirection
 
 public interface ITcpInterceptorWorker 
 {
-    event AddLog OnAddEncryptedLog;
-    event AddLog OnAddDecryptedLog;
+    event AddLog OnAddOutboundPacketLog;
+    event AddLog OnAddInboundPacketLog;
     Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool isEncrypted, CancellationToken cancellationToken);
     Task SendPacketToClientAsync(string message);
     Task SendPacketToServerAsync(string message);
@@ -43,22 +39,13 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     private readonly IHabboRC4 _decryptCipher;
     private readonly IHabboRC4 _encryptCipher;
     private bool _isEncrypted = false;
-    public static readonly byte[] ARTIFICIAL_KEY = StringToByteArray("14d288cdb0bc08c274809a7802962af98b41dec8");
     public readonly IPacketSplitter _packetSplitter;
     private bool _packetSplitted = false;
     private bool _sentData = false;
 
     public delegate void AddLog(string log);
-    public event AddLog OnAddEncryptedLog;
-    public event AddLog OnAddDecryptedLog;
-
-    private static byte[] StringToByteArray(string hex)
-    {
-        return Enumerable.Range(0, hex.Length)
-                         .Where(x => x % 2 == 0)
-                         .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
-                         .ToArray();
-    }
+    public event AddLog OnAddOutboundPacketLog;
+    public event AddLog OnAddInboundPacketLog;
 
         public TcpInterceptorWorker(IPacketSplitter packetSplitter, ILogger<TcpInterceptorWorker> logger)
     {
@@ -97,7 +84,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             }
             catch (Exception e)
             {
-                _logger.LogInformation("Operation cancelled.",e);
+                _logger.LogInformation("Operation cancelled",e);
             }
         }
         _listener?.Stop();
@@ -136,14 +123,14 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         {
             while ((bytesRead = await fromStream.ReadAsync(buffer, 0, buffer.Length, _cancellationToken)) > 0)
             {
-                // Read the packets:
+                // Read the inbound/outbound packets:
                 switch (direction)
                 {
                     case TrafficDirection.ServerToClient:
                         await ServerToClientPackets(buffer, bytesRead);
                         break;
                     case TrafficDirection.ClientToServer:
-                        await ClientToServerPackets(buffer, bytesRead);
+                        ClientToServerPackets(buffer, bytesRead);
                         break;
                 }
                 await toStream.WriteAsync(buffer, 0, bytesRead, _cancellationToken);
@@ -164,7 +151,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             {
                 var buffer = Encoding.ASCII.GetBytes(data);
                 await _clientStream.WriteAsync(buffer, 0, buffer.Length, _cancellationToken);
-                AddDecryptedLog(data);
+                AddInboundPacketLog(data);
                 _logger.LogInformation($"Sent to client: {data}");
             }
             catch (Exception ex)
@@ -193,11 +180,18 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                 {
                     var packetEncrypted = _encryptCipher.Encipher(data);
                     var buffer = Encoding.ASCII.GetBytes(packetEncrypted);
-                    AddDecryptedLog($"{data}");
-                    AddEncryptedLog($"{packetEncrypted}");
+                    AddOutboundPacketLog(data);
+
+                    if (_isEncrypted) 
+                    {
+                        AddOutboundPacketLog(data);
+                    }
+                    else
+                    {
+                        AddOutboundPacketLog(packetEncrypted);
+                    }
                     _logger.LogInformation($"Sent to server: {data} as {packetEncrypted}");
                     await _serverStream.WriteAsync(buffer, 0, buffer.Length, _cancellationToken);
-                   
                 }
             }
             catch (Exception ex)
@@ -245,12 +239,12 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             }
         }
 
-        AddDecryptedLog($"{serverPacket}");
+        AddInboundPacketLog(serverPacket);
         _logger.LogInformation($"{TrafficDirection.ServerToClient} (decrypted): {serverPacket}");
 
     }
 
-    private async Task ClientToServerPackets(byte[] buffer, int bytesRead)
+    private void ClientToServerPackets(byte[] buffer, int bytesRead)
     {
         if ((_server is not null && !_client.Connected) || buffer.Length == 0)
         {
@@ -273,18 +267,22 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
             // We are going to decrypt the clients packets that are going to the server
             _logger.LogInformation($"{TrafficDirection.ClientToServer} (decrypted): {_decryptCipher.Decipher(clientPacket)}");
-            AddDecryptedLog($"{_decryptCipher.Decipher(clientPacket)}");
-            
+            AddOutboundPacketLog($"{_decryptCipher.Decipher(clientPacket)}");
             return;
         }
-        AddEncryptedLog($"{clientPacket}");
+
+        AddOutboundPacketLog(clientPacket);
         _logger.LogInformation($"{TrafficDirection.ClientToServer} (encrypted): {clientPacket}");
     }
 
+    // Implementing IDisposable
+    ~TcpInterceptorWorker() => Dispose();
     public void Dispose()
     {
         DisposeResources();
+        GC.SuppressFinalize(this);
     }
+
     private void DisposeResources()
     {
         try
@@ -304,22 +302,15 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         }
     }
 
-    private void AddDecryptedLog(string logEntry)
-    {
-        // Use the Dispatcher to update the ObservableCollection on the UI thread
-        App.Current.Dispatcher.Invoke(() =>
-        {
-            OnAddEncryptedLog?.Invoke(logEntry);
-        });
-    }
+    private void AddInboundPacketLog(string logEntry) => OnAddInboundPacketLog?.Invoke(
+        "---------------------------------------------------------------------" +
+        Environment.NewLine + 
+        logEntry);
 
-    private void AddEncryptedLog(string logEntry)
-    {
-        // Use the Dispatcher to update the ObservableCollection on the UI thread
-        App.Current.Dispatcher.Invoke(() =>
-        {
-            OnAddDecryptedLog?.Invoke(logEntry);
-        });
-    }
+    private void AddOutboundPacketLog(string logEntry) => OnAddOutboundPacketLog?.Invoke(
+        "---------------------------------------------------------------------" +
+        Environment.NewLine + 
+        logEntry);
+
 }
 
