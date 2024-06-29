@@ -17,6 +17,7 @@ public interface ITcpInterceptorWorker
 {
     event AddLog OnAddOutboundPacketLog;
     event AddLog OnAddInboundPacketLog;
+    event UpdateCoords OnUpdateCoords;
     Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool isEncrypted, CancellationToken cancellationToken);
     Task SendPacketToClientAsync(string message);
     Task SendPacketToServerAsync(string message);
@@ -46,6 +47,8 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     public delegate void AddLog(string log);
     public event AddLog OnAddOutboundPacketLog;
     public event AddLog OnAddInboundPacketLog;
+    public delegate void UpdateCoords(Coordinate coords);
+    public event UpdateCoords OnUpdateCoords;
 
         public TcpInterceptorWorker(IPacketSplitter packetSplitter, ILogger<TcpInterceptorWorker> logger)
     {
@@ -231,6 +234,12 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             _logger.LogInformation($"Server packet: {serverPacket} | --> PUBLICKEY: {this._publicKey} <-- |");
         }
 
+        //Set walking coordinates
+        if (splitterData?.Coordinates is not null) 
+        {
+            OnUpdateCoords?.Invoke(splitterData.Coordinates);
+        }
+
         if (_client is not null)
         {
             if (splitterData.HasDataToSend()) 
@@ -267,7 +276,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
             // We are going to decrypt the clients packets that are going to the server
             _logger.LogInformation($"{TrafficDirection.ClientToServer} (decrypted): {_decryptCipher.Decipher(clientPacket)}");
-            AddOutboundPacketLog($"{_decryptCipher.Decipher(clientPacket)}");
+            AddOutboundPacketLog(_decryptCipher.Decipher(clientPacket));
             return;
         }
 

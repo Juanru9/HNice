@@ -25,6 +25,18 @@ public partial class MainWindow : Window
         _.Show();
     }
 
+    private void getDrinks_Click(object sender, RoutedEventArgs e)
+    {
+        var _ = new DrinksView(_viewModel.Worker);
+        _.Show();
+    }
+
+    private void encoderDecoder_Click(object sender, RoutedEventArgs e)
+    {
+        var _ = new EncoderDecoderView();
+        _.Show();
+    }
+
     private void about_Click(object sender, RoutedEventArgs e)
     {
         MessageBox.Show("This software is completely free and should not be used for purposes contrary to Sulake © policies.\nThe author is not responsible for any misuse of the tool.\n\nAuthor: github.com/Juanru9");

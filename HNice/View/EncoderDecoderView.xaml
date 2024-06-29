@@ -1,0 +1,70 @@
+﻿<Window x:Class="HNice.View.EncoderDecoderView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HNice.View"
+        mc:Ignorable="d"
+        ResizeMode="NoResize"
+        Title="Testing LV64 and B64 encrypt" Height="350" Width="500">
+    <Border Padding="5">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="auto" />
+                <ColumnDefinition Width="auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="0.2*"/>
+                <RowDefinition Height="0.2*"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Label VerticalAlignment="Center" Grid.Column="0" Grid.Row="0" Content="LV64:"/>
+            <TextBox Grid.Column="1" Grid.Row="0" Width="100" VerticalAlignment="Center" HorizontalAlignment="Left" x:Name="LV64TextBox" Margin="5" Text="{Binding LV64, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Grid.Column="1" Grid.Row="0" IsHitTestVisible="False" Text="Enter integer here" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0" Foreground="DarkGray">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Text.Length, ElementName=LV64TextBox}" Value="0">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <StackPanel Grid.Column="2" Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <RadioButton Name="EncodeLV64" IsChecked="True" Checked="encoderDecoderLV64_Click">Encode</RadioButton>
+                <RadioButton Name="DecodeLV64" Checked="encoderDecoderLV64_Click">Decode</RadioButton>
+            </StackPanel>
+
+
+            <Label VerticalAlignment="Center" Grid.Column="0" Grid.Row="1" Content="B64:"/>
+            <TextBox Grid.Column="1" Grid.Row="1" Width="100" VerticalAlignment="Center" HorizontalAlignment="Left" x:Name="B64TextBox" Margin="5" Text="{Binding B64, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <TextBlock Grid.Column="1" Grid.Row="1" IsHitTestVisible="False" Text="Enter text here" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="10,0,0,0" Foreground="DarkGray">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Text.Length, ElementName=B64TextBox}" Value="0">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <StackPanel Grid.Column="2" Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <RadioButton Name="EncodeB64" IsChecked="True" Checked="encoderDecoderB64_Click">Encode</RadioButton>
+                <RadioButton Name="DecodeB64" Checked="encoderDecoderB64_Click">Decode</RadioButton>
+            </StackPanel>
+
+            <StackPanel Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="2">
+                <TextBox x:Name="LV64Result" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Width="240"/>
+                <TextBox x:Name="B64Result" Margin="5,0,0,0" IsReadOnly="True" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Width="240"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

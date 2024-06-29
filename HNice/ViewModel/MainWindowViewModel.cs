@@ -50,14 +50,14 @@ namespace HNice.ViewModel
                 OnPropertyChanged(nameof(MusPort));
             }
         }
-        private bool _encryptPackets = true;
-        public bool EncryptPackets
+        private bool _decryptPackets = false;
+        public bool DecryptPackets
         {
-            get => _encryptPackets;
+            get => _decryptPackets;
             set
             {
-                _encryptPackets = value;
-                OnPropertyChanged(nameof(EncryptPackets));
+                _decryptPackets = value;
+                OnPropertyChanged(nameof(DecryptPackets));
             }
         }
         
@@ -169,7 +169,7 @@ namespace HNice.ViewModel
             IsConnected = true;
             Worker.OnAddInboundPacketLog += AddInboundLog;
             Worker.OnAddOutboundPacketLog += AddOutbounddLog;
-            await Worker.ExecuteAsync(HotelIP, InfoPort, InfoPort, _encryptPackets, _cts.Token);
+            await Worker.ExecuteAsync(HotelIP, InfoPort, InfoPort, _decryptPackets, _cts.Token);
         }
 
         private void OnDisconnect()

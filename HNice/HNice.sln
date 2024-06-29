@@ -3,7 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35017.193
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HNice", "HNice.csproj", "{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HNice", "HNice.csproj", "{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HNice.Test", "..\HNice.Test\HNice.Test.csproj", "{23A4E402-DC32-403E-9960-BFA0567592B5}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB} = {9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +20,10 @@ Global
 		{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9CB43E87-8DB1-4DE7-9BCB-B1A42BCB8CFB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{23A4E402-DC32-403E-9960-BFA0567592B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{23A4E402-DC32-403E-9960-BFA0567592B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{23A4E402-DC32-403E-9960-BFA0567592B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{23A4E402-DC32-403E-9960-BFA0567592B5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

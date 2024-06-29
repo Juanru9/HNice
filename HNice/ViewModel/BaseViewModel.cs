@@ -9,6 +9,7 @@ namespace HNice.ViewModel
         public readonly ITcpInterceptorWorker Worker;
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        public BaseViewModel() { }
         public BaseViewModel(ITcpInterceptorWorker worker) 
         {
             Worker = worker ?? throw new ArgumentNullException(nameof(worker));

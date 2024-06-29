@@ -1,5 +1,7 @@
 ﻿using HNice.Service;
+using HNice.Util;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 
 namespace HNice.Model;
@@ -8,6 +10,7 @@ public class SplittedData
     public string Status { get; set; }
     public string DataToSend { get; set; }
     public string PublicKey { get; set; }
+    public Coordinate Coordinates { get; set; }
     public SplittedData()
     {
 
@@ -119,6 +122,17 @@ public class PacketSplitter : IPacketSplitter
                 {
                     string[] j = data.Split(new[] { '\u0001' }, StringSplitOptions.None);
                     splittedData.PublicKey = data.Substring(2, data.Length - 2).Split(new[] { '\u0001' }, StringSplitOptions.None)[0];
+                }
+
+                // Walk packet
+                if (packetHeader == "@b")
+                {
+                    var coordinates = PacketExtractor.ExtractCoordinates(data);
+                    if (coordinates.AreValidCoords())
+                    {
+                        splittedData.Coordinates = coordinates;
+                        _logger.LogInformation($"Walking to ({coordinates.X},{coordinates.Y}) coords.");
+                    }
                 }
             }
         }
