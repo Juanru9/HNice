@@ -6,7 +6,7 @@ using System.Windows.Input;
 
 namespace HNice.ViewModel
 {
-    public class MainWindowViewModel : BaseViewModel
+    public class MainWindowViewModel : BaseViewModel, IDisposable
     {
         #region Properties
         private string _hotelAddress = "game-oes.habbo.com"; // By default we set Spain Address
@@ -115,7 +115,7 @@ namespace HNice.ViewModel
             get => _packetLogInboundForUI;
             set
             {
-                    _packetLogInboundForUI = value;
+                _packetLogInboundForUI = value;
                 OnPropertyChanged(nameof(PacketLogInboundForUI));
             }
         }
@@ -144,10 +144,18 @@ namespace HNice.ViewModel
 
         public void AddInboundLog(string log) 
         {
+            if (_packetLogOutboundForUI.Count >= 100)
+            {
+                _packetLogOutboundForUI.Clear();
+            }
             PacketLogOutboundForUI.Add(log);
         }
         public void AddOutbounddLog(string log)
         {
+            if (_packetLogInboundForUI.Count >= 100)
+            {
+                _packetLogInboundForUI.Clear();
+            }
             PacketLogInboundForUI.Add(log);
         }
 
@@ -176,7 +184,7 @@ namespace HNice.ViewModel
         {
             //Restore the hostfile as original
             HostEditor.RestoreHostsFile(LocalHost, HotelAddress);
-            _cts.Cancel();
+            _cts?.Cancel();
             IsConnected = false;
             Worker.OnAddInboundPacketLog -= AddInboundLog;
             Worker.OnAddOutboundPacketLog -= AddOutbounddLog;
@@ -194,5 +202,10 @@ namespace HNice.ViewModel
             PacketsToSend = string.Empty;
         }
 
+        public void Dispose()
+        {
+            HostEditor.RestoreHostsFile(LocalHost, HotelAddress);
+            GC.SuppressFinalize(this);
+        }
     }
 }

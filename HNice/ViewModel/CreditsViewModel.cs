@@ -1,4 +1,5 @@
-﻿using HNice.Service;
+﻿using HNice.Model.Packets;
+using HNice.Service;
 using System.Windows.Input;
 
 namespace HNice.ViewModel;
@@ -28,6 +29,10 @@ class CreditsViewModel : BaseViewModel
         CreditsCommand = new RelayCommand(async param => await OnAddCredits());
     }
 
-    private async Task OnAddCredits() => await OnSendToClient("@F" + _credits + ".0" + (char)1);
+    private async Task OnAddCredits() 
+    {
+        var addCreditVoucherPacket = new IncomingPacket(IncomingPacketMessage.PURSE, new List<string>() { $"{_credits}.0" });
+        await OnSendToClient(addCreditVoucherPacket.SerializePacketData());
+    }
 
 }

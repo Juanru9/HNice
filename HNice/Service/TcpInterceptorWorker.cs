@@ -4,6 +4,8 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using HNice.Model;
 using static HNice.Service.TcpInterceptorWorker;
+using HNice.Model.Packets;
+using HNice.Util;
 
 namespace HNice.Service;
 
@@ -27,6 +29,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 {
     private readonly ILogger<TcpInterceptorWorker> _logger;
 
+    private HabboPlayer? _playerInfo;
     private string _serverIp;
     private int _serverPort;
     private int _localPort;
@@ -41,7 +44,6 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     private readonly IHabboRC4 _encryptCipher;
     private bool _isEncrypted = false;
     public readonly IPacketSplitter _packetSplitter;
-    private bool _packetSplitted = false;
     private bool _sentData = false;
 
     public delegate void AddLog(string log);
@@ -50,7 +52,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     public delegate void UpdateCoords(Coordinate coords);
     public event UpdateCoords OnUpdateCoords;
 
-        public TcpInterceptorWorker(IPacketSplitter packetSplitter, ILogger<TcpInterceptorWorker> logger)
+    public TcpInterceptorWorker(IPacketSplitter packetSplitter, ILogger<TcpInterceptorWorker> logger)
     {
         _packetSplitter = packetSplitter ?? throw new ArgumentNullException(nameof(packetSplitter));
         _logger = logger ?? throw new ArgumentNullException(nameof(_logger));
@@ -148,14 +150,15 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
     public async Task SendPacketToClientAsync(string data)
     {
-        if (_client is not null)
+        if (_client is not null && _client.Connected)
         {
             try
             {
-                var buffer = Encoding.ASCII.GetBytes(data);
+                var dataFormatted = data.EndsWith(Constants.PACKET_ENDER) ? data : data + (char)1;
+                var buffer = Encoding.ASCII.GetBytes(dataFormatted);
                 await _clientStream.WriteAsync(buffer, 0, buffer.Length, _cancellationToken);
-                AddInboundPacketLog(data);
-                _logger.LogInformation($"Sent to client: {data}");
+                AddInboundPacketLog(dataFormatted);
+                _logger.LogInformation($"Sent to client: {dataFormatted}");
             }
             catch (Exception ex)
             {
@@ -171,7 +174,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
     public async Task SendPacketToServerAsync(string data)
     {
-        if (_server is not null)
+        if (_server is not null && _server.Connected)
         {
             try
             {
@@ -223,34 +226,61 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             return;
         }
 
-        var splitterData = _packetSplitter.SplitData(serverPacket, TrafficDirection.ServerToClient, ref _packetSplitted);
-
-        // Set public key from handshake to server in order to decrypt packets
-        if (!string.IsNullOrEmpty(splitterData?.PublicKey))
-        {
-            _publicKey = splitterData.PublicKey;
-            _decryptCipher.SetKey(_publicKey);
-            _encryptCipher.SetKey(_publicKey);
-            _logger.LogInformation($"Server packet: {serverPacket} | --> PUBLICKEY: {this._publicKey} <-- |");
-        }
-
-        //Set walking coordinates
-        if (splitterData?.Coordinates is not null) 
-        {
-            OnUpdateCoords?.Invoke(splitterData.Coordinates);
-        }
-
-        if (_client is not null)
-        {
-            if (splitterData.HasDataToSend()) 
-            {
-                await _client.GetStream().WriteAsync(Encoding.ASCII.GetBytes(splitterData.DataToSend));
-            }
-        }
+        var splitterData = _packetSplitter.SplitData(serverPacket, TrafficDirection.ServerToClient);
+        await IncomingPacketDataHandler(splitterData.IncomingPackets);
 
         AddInboundPacketLog(serverPacket);
-        _logger.LogInformation($"{TrafficDirection.ServerToClient} (decrypted): {serverPacket}");
+    }
 
+    private async Task IncomingPacketDataHandler(List<IncomingPacket> packets) 
+    {
+        if (packets is null || packets.Count == 0) return;
+
+        if (packets.Count == 1) 
+        {
+            var packet = packets.FirstOrDefault();
+            switch (packet?.Header) 
+            {
+                case IncomingPacketMessage.SECRET_KEY:
+                    if (!string.IsNullOrEmpty(_publicKey)) return;
+                    // Set public key from handshake to server in order to decrypt packets
+                    _publicKey = packet.PacketContent.First();
+                    _decryptCipher.SetKey(_publicKey);
+                    _encryptCipher.SetKey(_publicKey);
+                    _logger.LogInformation($"Server packet: {packet} | --> PUBLICKEY: {this._publicKey} <-- |");
+                    break;
+                    case IncomingPacketMessage.USER_OBJ:
+                    if (_playerInfo is not null) return;
+                        _playerInfo = new HabboPlayer(packet.PacketContent.First());
+                        await SendPacketToClientAsync("BK" + "Welcome to Habbo Nice [" + _playerInfo.HabboName + "] by Samus");
+                        break;
+                case IncomingPacketMessage.STATUS:
+                    if (_playerInfo?.DynamicRoomID is null || !packet.PacketContent.Any(packetContent => packetContent.Contains(_playerInfo.DynamicRoomID)))
+                        break;
+                    // Case when we habe our own player room ID to get its real time coords:
+                    var coordinates = PacketExtractor.ExtractCoordinates(packet.SerializePacketData());
+                    if (coordinates is not null && coordinates.AreValidCoords())
+                    {
+                        //Set walking coordinates
+                        OnUpdateCoords?.Invoke(coordinates);
+                        _logger.LogInformation($"Walking to ({coordinates.X},{coordinates.Y}) coords.");
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return;
+        }
+
+        // Set Dynamic user ID set in a new  room
+        var infoUserPacket = packets.FirstOrDefault(packet => _playerInfo is not null 
+        && packet.Header == IncomingPacketMessage.USERS 
+        && packet.PacketContent.Any(userData => userData.Contains(_playerInfo.HabboName)));
+
+        if (infoUserPacket is not null) 
+        {
+            _playerInfo!.DynamicRoomID = infoUserPacket.PacketContent.First(content => content.Contains(_playerInfo.HabboName)).Substring(0, 2);
+        }
     }
 
     private void ClientToServerPackets(byte[] buffer, int bytesRead)
@@ -260,15 +290,13 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             _logger.LogInformation("Client NOT connected");
             return;
         }
-
-        string clientPacket = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+        var clientPacket = Encoding.ASCII.GetString(buffer, 0, bytesRead);
 
         if (string.IsNullOrEmpty(clientPacket))
         {
             return;
         }
-
-        var splitterData = _packetSplitter.SplitData(clientPacket, TrafficDirection.ClientToServer, ref _packetSplitted);
+        var splitterData = _packetSplitter.SplitData(clientPacket, TrafficDirection.ClientToServer);
 
         if (_isEncrypted)
         {
@@ -296,6 +324,8 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     {
         try
         {
+            _playerInfo = null;
+            _publicKey = string.Empty;
             _listener?.Dispose();
             _client?.Close();
             _client?.Dispose();

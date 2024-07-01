@@ -6,7 +6,6 @@ namespace HNice.Util;
 public static class HostEditor
 {
     private static string _windowsHostFolder = "drivers/etc/hosts";
-    //Utils, should move to another static class
     public static void UpdateHostsFile(string localhost, string hotelAddress)
     {
         try

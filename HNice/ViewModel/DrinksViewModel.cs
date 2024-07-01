@@ -1,4 +1,5 @@
 ﻿using HNice.Model;
+using HNice.Model.Packets;
 using HNice.Service;
 using HNice.Util.Extensions;
 using System.Windows.Input;
@@ -102,8 +103,16 @@ class DrinksViewModel : BaseViewModel
         _worker.OnUpdateCoords -= UpdateMachineCoords;
     }
 
-    private async Task OnGenerateDrinkMachine() => await OnSendToClient($"@`I666\u0002{SelectedFurni}\u0002{XCoord.EncodeVL64()}{YCoord.EncodeVL64()}II{Rotation.EncodeVL64()}0.0\u0002\u0002\u0002HTRUE\u0002\u0001");
-    private async Task OnGenerateCustomDrinkMachine() => await OnSendToClient($"@`I666\u0002{CustomFurniName}\u0002{XCoord.EncodeVL64()}{YCoord.EncodeVL64()}II{Rotation.EncodeVL64()}0.0\u0002\u0002\u0002HTRUE\u0002\u0001");
+    private async Task OnGenerateDrinkMachine() 
+    {
+        var generateDrinkMachinePacket = new IncomingPacket(IncomingPacketMessage.ACTIVEOBJECTS, new List<string>() { $"I666", SelectedFurni, XCoord.EncodeVL64() + YCoord.EncodeVL64() + "II" + Rotation.EncodeVL64() + "0.0","HTRUE" });
+        await OnSendToClient(generateDrinkMachinePacket.SerializePacketData());
+    }
+    private async Task OnGenerateCustomDrinkMachine() 
+    {
+        var generateCustomDrinkMachinePacket = new IncomingPacket(IncomingPacketMessage.ACTIVEOBJECTS, new List<string>() { $"I666", CustomFurniName, XCoord.EncodeVL64() + YCoord.EncodeVL64() + "II" + Rotation.EncodeVL64() + "0.0", "HTRUE" });
+        await OnSendToClient(generateCustomDrinkMachinePacket.SerializePacketData());
+    }
 
     private void UpdateMachineCoords(Coordinate coords) 
     {
@@ -112,6 +121,5 @@ class DrinksViewModel : BaseViewModel
 
         XCoord = coords.X.Value;
         YCoord = coords.Y.Value;
-        
     }
 }

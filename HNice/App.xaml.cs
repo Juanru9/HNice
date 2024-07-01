@@ -1,10 +1,10 @@
 ﻿using HNice.Model;
 using HNice.Service;
 using HNice.View;
+using HNice.ViewModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.IO;
 using System.Windows;
 
 namespace HNice
@@ -24,6 +24,7 @@ namespace HNice
                     logging.ClearProviders();
                     logging.AddConsole();
                     logging.AddDebug();
+                    logging.SetMinimumLevel(LogLevel.Trace);
                     //logging.AddFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log", "app.log"));
                 })
                 .ConfigureServices((context, services) =>
@@ -53,6 +54,7 @@ namespace HNice
         {
             using (_host) 
             {
+                (_host.Services.GetRequiredService<MainWindow>().DataContext as MainWindowViewModel)?.Dispose();
                 await _host.StopAsync();
             }
             base.OnExit(e);
