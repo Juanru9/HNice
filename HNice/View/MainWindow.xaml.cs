@@ -31,6 +31,28 @@ public partial class MainWindow : Window
         _.Show();
     }
 
+    private void furniture_Click(object sender, RoutedEventArgs e)
+    {
+        var _ = new FurnitureView(_viewModel.Worker);
+        _.Show();
+    }
+
+    private void imitate_Click(object sender, RoutedEventArgs e) => new ImitateView(_viewModel.Worker).Show();
+
+    private void warp_Click(object sender, RoutedEventArgs e) => new WarpView(_viewModel.Worker).Show();
+
+    private void modFunctions_Click(object sender, RoutedEventArgs e) => new ModFunctionsView(_viewModel.Worker).Show();
+
+    private void spawnUser_Click(object sender, RoutedEventArgs e) => new SpawnUserView(_viewModel.Worker).Show();
+
+    private void fuse_Click(object sender, RoutedEventArgs e) => new FuseView(_viewModel.Worker).Show();
+
+    private void badges_Click(object sender, RoutedEventArgs e) => new BadgesView(_viewModel.Worker).Show();
+
+    private void roomDecor_Click(object sender, RoutedEventArgs e) => new RoomDecorView(_viewModel.Worker).Show();
+
+    private void packetSender_Click(object sender, RoutedEventArgs e) => new PacketSenderView(_viewModel.Worker).Show();
+
     private void encoderDecoder_Click(object sender, RoutedEventArgs e)
     {
         var _ = new EncoderDecoderView();

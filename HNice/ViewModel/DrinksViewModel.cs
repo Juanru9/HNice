@@ -105,13 +105,11 @@ class DrinksViewModel : BaseViewModel
 
     private async Task OnGenerateDrinkMachine() 
     {
-        var generateDrinkMachinePacket = new IncomingPacket(IncomingPacketMessage.ACTIVEOBJECTS, new List<string>() { $"I666", SelectedFurni, XCoord.EncodeVL64() + YCoord.EncodeVL64() + "II" + Rotation.EncodeVL64() + "0.0","HTRUE" });
-        await OnSendToClient(generateDrinkMachinePacket.SerializePacketData());
+        await OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", 1, SelectedFurni, XCoord, YCoord, Rotation));
     }
     private async Task OnGenerateCustomDrinkMachine() 
     {
-        var generateCustomDrinkMachinePacket = new IncomingPacket(IncomingPacketMessage.ACTIVEOBJECTS, new List<string>() { $"I666", CustomFurniName, XCoord.EncodeVL64() + YCoord.EncodeVL64() + "II" + Rotation.EncodeVL64() + "0.0", "HTRUE" });
-        await OnSendToClient(generateCustomDrinkMachinePacket.SerializePacketData());
+        await OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", 1, CustomFurniName, XCoord, YCoord, Rotation));
     }
 
     private void UpdateMachineCoords(Coordinate coords) 

@@ -1,5 +1,4 @@
 ﻿using HNice.Model.Encryption;
-using System.Collections;
 using System.Globalization;
 using System.Text;
 
@@ -7,9 +6,30 @@ namespace HNice.Util.Extensions;
 
 public static class EncryptionExtension
 {
-    // Converts a numerical value into a specific two-character string representation
-    // VL64 is most used in server > client packets.
-    // What's VL64? Well, it's an encoding for numbers, it makes numbers 'understandable' for the Habbo client.
+    // Habbo B64 (not RFC 4648 Base64): every byte carries 6 bits with a 0x40 offset, most significant first.
+    // Used for packet headers, packet lengths and outgoing string lengths.
+    public static int DecodeB64(this ReadOnlySpan<byte> data)
+    {
+        var result = 0;
+        foreach (var value in data)
+        {
+            result = (result << 6) | (value - 0x40);
+        }
+        return result;
+    }
+
+    public static int DecodeB64(this byte[] data) => DecodeB64((ReadOnlySpan<byte>)data);
+
+    public static byte[] EncodeB64Bytes(this int value, int length = 2)
+    {
+        var result = new byte[length];
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = (byte)(0x40 + (value >> 6 * (length - 1 - i) & 0x3F));
+        }
+        return result;
+    }
+
     public static int DecodeB64(this string value)
     {
         var result = 0;
@@ -60,6 +80,9 @@ public static class EncryptionExtension
         return System.Text.Encoding.UTF8.GetString(bzData, 0, numBytes);
     }
 
+    // Converts a numerical value into a specific two-character string representation
+    // VL64 is most used in server > client packets.
+    // What's VL64? Well, it's an encoding for numbers, it makes numbers 'understandable' for the Habbo client.
     public static IEnumerable<DecodedVL64> DecodeVL64(this string bzData)
     {
         var encodedString = bzData;

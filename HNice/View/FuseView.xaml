@@ -1,0 +1,15 @@
+﻿<Window x:Class="HNice.View.FuseView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        mc:Ignorable="d"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        ResizeMode="CanResize"
+        Title="Custom fuse (client-side rights)" Height="300" Width="340">
+    <DockPanel Margin="10">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
+                   Text="One fuse permission per line. Reveals client UI only; the server still enforces real rights."/>
+        <Button DockPanel.Dock="Bottom" Height="28" Margin="0,8,0,0" Content="Send fuse rights" Command="{Binding SendFuseCommand}"/>
+        <TextBox Text="{Binding Permissions}" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"/>
+    </DockPanel>
+</Window>

@@ -36,7 +36,7 @@ public abstract class Packet<THeader> where THeader : struct, Enum
         }
 
         var headerString = _packetRawData.Substring(0, 2);
-        var headerValue = headerString.Substring(1).DecodeB64();
+        var headerValue = headerString.DecodeB64();
 
         if (!Enum.IsDefined(typeof(THeader), headerValue))
         {

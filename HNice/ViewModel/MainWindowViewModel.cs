@@ -2,6 +2,7 @@
 using HNice.Util;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Input;
 
 namespace HNice.ViewModel
@@ -142,21 +143,26 @@ namespace HNice.ViewModel
         public ICommand SendToServerCommand { get; }
         #endregion
 
-        public void AddInboundLog(string log) 
+        // Raised from the network threads: queue the update on the UI thread without waiting for it,
+        // otherwise every packet would be held until the UI finished redrawing the logs.
+        public void AddInboundLog(string log)
         {
-            if (_packetLogOutboundForUI.Count >= 100)
-            {
-                _packetLogOutboundForUI.Clear();
-            }
-            PacketLogOutboundForUI.Add(log);
+            if (_pauseOutboundPackets) return;
+            Application.Current?.Dispatcher.BeginInvoke(() => AddLog(PacketLogOutboundForUI, log));
         }
         public void AddOutbounddLog(string log)
         {
-            if (_packetLogInboundForUI.Count >= 100)
+            if (_pauseInboundPackets) return;
+            Application.Current?.Dispatcher.BeginInvoke(() => AddLog(PacketLogInboundForUI, log));
+        }
+
+        private static void AddLog(ObservableCollection<string> logs, string log)
+        {
+            if (logs.Count >= 100)
             {
-                _packetLogInboundForUI.Clear();
+                logs.Clear();
             }
-            PacketLogInboundForUI.Add(log);
+            logs.Add(log);
         }
 
         public MainWindowViewModel(ITcpInterceptorWorker worker, ILogger<MainWindowViewModel> logger) : base(worker)
@@ -172,12 +178,42 @@ namespace HNice.ViewModel
         private async Task OnConnect()
         {
             _cts = new CancellationTokenSource();
+
+            // Resolve the hotel's real IP via public DNS before hijacking the hosts file.
+            // The OS resolver can't be used here: once the hosts entry is added, the hotel points at 127.0.0.1.
+            var resolved = await PublicDnsResolver.ResolveAsync(HotelAddress, _cts.Token);
+            if (!string.IsNullOrEmpty(resolved))
+            {
+                HotelIP = resolved;
+                _logger.LogInformation("Resolved {Address} to {Ip} via public DNS", HotelAddress, resolved);
+            }
+            else if (string.IsNullOrWhiteSpace(HotelIP))
+            {
+                MessageBox.Show($"Could not resolve {HotelAddress}. Enter the IP manually.", "HNice", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            else
+            {
+                _logger.LogWarning("Could not resolve {Address} via public DNS, using the IP field ({Ip})", HotelAddress, HotelIP);
+            }
+
             //First pair hotel address to localhost for packet hijacking
             HostEditor.UpdateHostsFile(LocalHost, HotelAddress);
             IsConnected = true;
             Worker.OnAddInboundPacketLog += AddInboundLog;
             Worker.OnAddOutboundPacketLog += AddOutbounddLog;
-            await Worker.ExecuteAsync(HotelIP, InfoPort, InfoPort, _decryptPackets, _cts.Token);
+            try
+            {
+                // Run the proxy on the thread pool: awaiting it from the UI thread would resume every socket read on the UI thread.
+                var token = _cts.Token;
+                await Task.Run(() => Worker.ExecuteAsync(HotelIP, InfoPort, InfoPort, _decryptPackets, token));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Interceptor stopped unexpectedly");
+                MessageBox.Show($"Could not start the interceptor: {ex.Message}", "HNice", MessageBoxButton.OK, MessageBoxImage.Error);
+                OnDisconnect();
+            }
         }
 
         private void OnDisconnect()

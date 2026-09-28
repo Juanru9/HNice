@@ -1,5 +1,4 @@
-﻿using HNice.Model;
-using HNice.Service;
+﻿using HNice.Service;
 using HNice.View;
 using HNice.ViewModel;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +36,6 @@ namespace HNice
         private void ConfigureServices(HostBuilderContext context, IServiceCollection services) 
         {
             services.AddSingleton<ITcpInterceptorWorker, TcpInterceptorWorker>();
-            services.AddSingleton<IPacketSplitter, PacketSplitter>();
             services.AddSingleton<MainWindow>();
         }
 

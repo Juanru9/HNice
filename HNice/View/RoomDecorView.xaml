@@ -1,0 +1,45 @@
+﻿<Window x:Class="HNice.View.RoomDecorView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        mc:Ignorable="d"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        ResizeMode="NoResize"
+        Title="Poster on wall (client-side)" Height="300" Width="340">
+    <StackPanel Margin="10">
+        <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
+                   Text="Hangs a wall item (poster) on your own screen only, using the real ITEMS packet format."/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <Label Grid.Row="0" Content="Item id:"/>
+            <TextBox Grid.Row="0" Grid.Column="1" Margin="2" Text="{Binding PosterId}"/>
+            <Label Grid.Row="1" Content="Sprite:"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Margin="2" Text="{Binding Sprite}"/>
+            <Label Grid.Row="2" Content="Owner:"/>
+            <TextBox Grid.Row="2" Grid.Column="1" Margin="2" Text="{Binding Owner}"/>
+            <Label Grid.Row="3" Content="Wall / location:"/>
+            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal">
+                <TextBox Width="70" Margin="2" Text="{Binding Wall}"/>
+                <TextBox Width="70" Margin="2" Text="{Binding Location}"/>
+            </StackPanel>
+            <Label Grid.Row="4" Content="Direction / type:"/>
+            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal">
+                <TextBox Width="40" Margin="2" Text="{Binding Direction}"/>
+                <TextBox Width="50" Margin="2" Text="{Binding PosterType}"/>
+            </StackPanel>
+            <Button Grid.Row="5" Grid.Column="1" HorizontalAlignment="Left" Width="120" Height="26"
+                    Margin="2,8,0,0" Content="Hang poster" Command="{Binding AddPosterCommand}"/>
+        </Grid>
+    </StackPanel>
+</Window>

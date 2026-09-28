@@ -1,7 +1,10 @@
-﻿namespace HNice.Model;
+﻿using HNice.Model.Packets;
+
+namespace HNice.Model;
 
 public sealed class HabboPlayer
 {
+    public int? UserId { get; set; }
     public string HabboName { get; set; }
     public string HabboFigure { get; set; }
     public string HabboSex { get; set; }
@@ -19,10 +22,17 @@ public sealed class HabboPlayer
 
     public HabboPlayer(string packetData)
     {
+        if (!packetData.Contains('='))
+        {
+            ParseUserObject(packetData);
+            return;
+        }
+
         var lines = packetData.Split(new[] { '\r' }, StringSplitOptions.None);
 
         foreach (var line in lines)
         {
+            if (!line.Contains('=')) continue;
             var key = line.Substring(0, line.IndexOf('='));
             var value = line.Substring(line.IndexOf('=') + 1);
 
@@ -66,5 +76,27 @@ public sealed class HabboPlayer
                     break;
             }
         }
+    }
+
+    // Current USER_OBJ body, same fields as the old key=value format but typed:
+    // id:int, name, figure, sex, mission, ph_tickets:int, ph_figure, photo_film:int, directMail:int, then more flags.
+    private void ParseUserObject(string packetBody)
+    {
+        var reader = new IncomingPacketReader(packetBody);
+
+        UserId = reader.ReadInt();
+        HabboName = reader.ReadString();
+        HabboFigure = reader.ReadString();
+        HabboSex = reader.ReadString();
+        HabboMission = reader.ReadString();
+
+        // Optional for us: a shorter packet must not lose the fields above.
+        if (!reader.HasMore) return;
+        PhTickets = reader.ReadInt();
+        PhFigure = reader.ReadString();
+        if (!reader.HasMore) return;
+        PhotoFilm = reader.ReadInt();
+        if (!reader.HasMore) return;
+        DirectMail = reader.ReadInt();
     }
 }

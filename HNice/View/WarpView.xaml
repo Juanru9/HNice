@@ -1,0 +1,23 @@
+﻿<Window x:Class="HNice.View.WarpView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        mc:Ignorable="d"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        ResizeMode="NoResize"
+        Title="Warp (local teleport)" Height="150" Width="320">
+    <StackPanel Margin="10">
+        <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,8"
+                   Text="Moves your avatar on your own screen only."/>
+        <StackPanel Orientation="Horizontal">
+            <Label Content="Room index:"/>
+            <TextBox Width="50" Text="{Binding RoomIndex}"/>
+            <Label Content="X:"/>
+            <TextBox Width="45" Text="{Binding XCoord}"/>
+            <Label Content="Y:"/>
+            <TextBox Width="45" Text="{Binding YCoord}"/>
+        </StackPanel>
+        <Button Margin="0,10,0,0" Height="28" Width="120" HorizontalAlignment="Left"
+                Content="Warp" Command="{Binding WarpCommand}"/>
+    </StackPanel>
+</Window>
