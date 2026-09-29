@@ -2,8 +2,18 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel>
-        <Button Content="Clone me" HorizontalAlignment="Left" Margin="0,0,0,20"
-                Command="{Binding CloneMeCommand}" ToolTip="Copies your own look (once logged in)" />
+        <StackPanel Style="{StaticResource Section}">
+            <DockPanel Margin="0,0,0,5">
+                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Clone me" Padding="6,2" MinHeight="0"
+                        Command="{Binding CloneMeCommand}" ToolTip="Copies your own look (once logged in)" />
+                <TextBlock Style="{StaticResource FieldLabel}" Margin="0" Text="Copy look from" VerticalAlignment="Bottom" />
+            </DockPanel>
+            <ComboBox ItemsSource="{Binding People}" SelectedItem="{Binding CopyFrom}" DisplayMemberPath="DisplayName"
+                      AutomationProperties.Name="Copy look from"
+                      Visibility="{Binding People.Count, Converter={StaticResource HasValue}}" />
+            <TextBlock Style="{StaticResource Hint}" Text="Nobody else here yet. Enter a room with people, or type a figure below."
+                       Visibility="{Binding People.Count, Converter={StaticResource NoValue}}" />
+        </StackPanel>
 
         <StackPanel Style="{StaticResource Section}">
             <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
@@ -11,42 +21,89 @@
             <TextBlock Style="{StaticResource FieldLabel}" Text="Figure" Margin="0,12,0,5" />
             <TextBox Style="{StaticResource MonoInput}" Text="{Binding Figure, UpdateSourceTrigger=PropertyChanged}"
                      TextWrapping="Wrap" AutomationProperties.Name="Figure" />
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Motto" Margin="0,12,0,5" />
+            <TextBox Text="{Binding Motto}" AutomationProperties.Name="Motto" />
         </StackPanel>
 
-        <StackPanel Style="{StaticResource Section}" Orientation="Horizontal">
-            <StackPanel>
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Gender" />
-                <Border Style="{StaticResource SegmentGroup}">
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton Style="{StaticResource Segment}" GroupName="spawnSex" Content="Male"
-                                     IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=M}" />
-                        <RadioButton Style="{StaticResource Segment}" GroupName="spawnSex" Content="Female"
-                                     IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=F}" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-            <StackPanel Margin="24,0,0,0">
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Tile" />
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Gender" />
+            <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
                 <StackPanel Orientation="Horizontal">
-                    <TextBox Style="{StaticResource NumberInput}" Text="{Binding XCoord}" AutomationProperties.Name="X" />
-                    <TextBlock Text="," Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="5,0" />
-                    <TextBox Style="{StaticResource NumberInput}" Text="{Binding YCoord}" AutomationProperties.Name="Y" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="spawnSex" Content="Male"
+                                 IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=M}" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="spawnSex" Content="Female"
+                                 IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=F}" />
+                </StackPanel>
+            </Border>
+            <CheckBox Content="Appear as a bot, like Bob" IsChecked="{Binding AsBot}" Margin="0,12,0,0"
+                      ToolTip="Sent as user type 3, the way the server sends NPCs. Experimental: server bots use an older figure format, so a Habbo figure may not draw." />
+        </StackPanel>
+
+        <!-- ===== How many and where ===== -->
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="How many" />
+            <StackPanel Orientation="Horizontal">
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding Count, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="How many" ToolTip="1 to 20. More than one get numbered names." />
+                <Button Style="{StaticResource ChipButton}" Content="1" Margin="8,0,0,0" Command="{Binding SetCountCommand}" CommandParameter="1" />
+                <Button Style="{StaticResource ChipButton}" Content="5" Command="{Binding SetCountCommand}" CommandParameter="5" />
+                <Button Style="{StaticResource ChipButton}" Content="10" Command="{Binding SetCountCommand}" CommandParameter="10" />
+                <Button Style="{StaticResource ChipButton}" Content="20" Command="{Binding SetCountCommand}" CommandParameter="20" />
+            </StackPanel>
+
+            <CheckBox Content="Count them in the navigator" IsChecked="{Binding CountInNavigator}" Margin="0,14,0,0"
+                      ToolTip="This room shows your bots in its user count in the navigator (only you see it). Refreshes the next time the navigator updates." />
+            <CheckBox Content="Around me, facing me" IsChecked="{Binding AroundMe}" Margin="0,10,0,0"
+                      ToolTip="Free floor tiles around you, nearest first. Walls, other people and earlier bots are skipped." />
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Visibility="{Binding AroundMe, Converter={StaticResource NoValue}}">
+                <TextBlock Text="Around tile" Foreground="{StaticResource TextMid}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding XCoord}" AutomationProperties.Name="X" />
+                <TextBlock Text="," Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="5,0" />
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding YCoord}" AutomationProperties.Name="Y" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource AccentButton}" Content="Spawn" MinWidth="160"
+                    Command="{Binding SpawnCommand}" IsDefault="True" />
+            <Button Margin="8,0,0,0" Command="{Binding RemoveBotsCommand}" ToolTip="Takes every bot you spawned in this room off your screen">
+                <TextBlock><Run Text="Remove bots (" /><Run Text="{Binding SpawnedCount, Mode=OneWay}" /><Run Text=")" /></TextBlock>
+            </Button>
+        </StackPanel>
+        <TextBlock Style="{StaticResource Hint}" Text="{Binding Message}" Foreground="{StaticResource Gold}" TextWrapping="Wrap"
+                   Margin="0,8,0,0" Visibility="{Binding Message, Converter={StaticResource HasValue}}" />
+
+        <!-- ===== Talk ===== -->
+        <Border Style="{StaticResource Card}" Margin="0,20,0,0" Visibility="{Binding SpawnedCount, Converter={StaticResource HasValue}}">
+            <StackPanel>
+                <TextBlock Text="Make them talk" FontWeight="SemiBold" Margin="0,0,0,10" />
+                <DockPanel Margin="0,0,0,8">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="All" Padding="8,2" MinHeight="0" Margin="6,0,0,0"
+                            Command="{Binding ClearSpeakerCommand}" ToolTip="Every bot says it, one after another"
+                            Visibility="{Binding Speaker, Converter={StaticResource HasValue}}" />
+                    <ComboBox ItemsSource="{Binding Spawned}" SelectedItem="{Binding Speaker}" DisplayMemberPath="DisplayName"
+                              AutomationProperties.Name="Who talks" ToolTip="Leave empty for all bots" />
+                </DockPanel>
+                <TextBlock Style="{StaticResource Hint}" Text="Nobody picked: all bots talk, one after another." Margin="0,0,0,8"
+                           Visibility="{Binding Speaker, Converter={StaticResource NoValue}}" />
+                <TextBox Text="{Binding SayText, UpdateSourceTrigger=PropertyChanged}" Tag="What they say"
+                         AutomationProperties.Name="What they say" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Style="{StaticResource AccentButton}" Content="Say" MinWidth="90" Command="{Binding SayCommand}" />
+                    <Button Content="Shout" MinWidth="90" Margin="8,0,0,0" Command="{Binding ShoutCommand}" />
                 </StackPanel>
             </StackPanel>
-        </StackPanel>
-
-        <Button Style="{StaticResource AccentButton}" Content="Spawn" HorizontalAlignment="Left" MinWidth="160"
-                Command="{Binding SpawnCommand}" IsDefault="True" />
+        </Border>
 
         <Expander Header="Advanced" Margin="0,20,0,0">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Room slot" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Next room slot" VerticalAlignment="Center" Margin="0,0,12,0" />
                 <TextBox Style="{StaticResource NumberInput}" Text="{Binding RoomIndex}"
-                         ToolTip="Use a high number so it does not replace a real user" AutomationProperties.Name="Room slot" />
+                         ToolTip="Goes up with each bot. Keep it high so bots do not replace real users." AutomationProperties.Name="Room slot" />
             </StackPanel>
         </Expander>
 
         <TextBlock Style="{StaticResource Disclosure}"
-                   Text="The avatar exists on your screen only. It cannot move, talk to others or be seen by anyone else." />
+                   Text="Bots exist on your screen only. They cannot move, talk to others or be seen by anyone else, and they disappear when you change rooms." />
     </StackPanel>
 </UserControl>

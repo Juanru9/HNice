@@ -20,6 +20,9 @@
             </ListBox>
         </StackPanel>
 
+        <CheckBox Content="Place it next to me, facing me" IsChecked="{Binding PlaceInFrontOfMe}" Margin="0,0,0,16"
+                  ToolTip="Machines only face 2 or 4, so it goes on your west tile, or your north tile when you look north. Keep that tile free. Off = use the position below." />
+
         <StackPanel Style="{StaticResource Section}">
             <DockPanel Margin="0,0,0,5">
                 <TextBlock DockPanel.Dock="Right" FontSize="{StaticResource TextXs}" Foreground="{StaticResource Success}"
@@ -35,10 +38,10 @@
             <TextBlock Style="{StaticResource FieldLabel}" Text="Facing" Margin="0,12,0,5" />
             <Border Style="{StaticResource SegmentGroup}">
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="0" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=0}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="2" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=2}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="4" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=4}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="6" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=6}" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="2" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=2}"
+                                 ToolTip="Facing 2: use it from its east side" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="drinkRot" Content="4" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=4}"
+                                 ToolTip="Facing 4: use it from its south side" />
                 </StackPanel>
             </Border>
         </StackPanel>
@@ -56,6 +59,6 @@
         </Expander>
 
         <TextBlock Style="{StaticResource Disclosure}"
-                   Text="The machine is drawn on your screen only; the server does not know it exists, so it cannot serve drinks." />
+                   Text="Drawn on your screen only. Click it to get the drink: you see it in your hand, other players do not." />
     </StackPanel>
 </UserControl>

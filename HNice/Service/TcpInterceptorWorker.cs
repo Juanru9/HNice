@@ -39,6 +39,42 @@ public interface ITcpInterceptorWorker
 
     /// <summary>Key exchange state of the active session; null when not decrypting or not connected.</summary>
     CryptoDiagnostics? CryptoDiagnostics { get; }
+
+    /// <summary>Your avatar's latest room status, once identified (index, tile, height, rotation).</summary>
+    StatusEntry? MyStatus { get; }
+
+    /// <summary>Marks an item id as placed by HNice, so clicks on it are answered locally.</summary>
+    void RegisterFakeItem(string itemId);
+
+    /// <summary>A drink machine placed by HNice: using it hands out <paramref name="drink"/> locally.</summary>
+    void RegisterFakeMachine(string itemId, int x, int y, int rotation, string drink);
+
+    /// <summary>Your avatar's slot in the current room, once identified.</summary>
+    int? MyRoomIndex { get; }
+
+    /// <summary>Everyone in the current room except you.</summary>
+    IReadOnlyList<RoomUser> RoomUsers { get; }
+
+    /// <summary>True when the tile is floor in the current room, false when not, null before the room map arrived.</summary>
+    bool? IsFloorTile(int x, int y);
+
+    /// <summary>Added to the current room's user count in the navigator (your screen only). Reset on room change.</summary>
+    int ExtraUsersInRoom { get; set; }
+
+    /// <summary>The furni catalogue collected from the game's catalogue packets.</summary>
+    FurniCatalog Catalog { get; }
+
+    /// <summary>Copies another Habbo's walking, gestures and chat through your connection.</summary>
+    Mimic Mimic { get; }
+
+    /// <summary>Requests catalogue pages from the server (null = all pages in the index), one per second.</summary>
+    Task<int> FetchCatalogAsync(IEnumerable<string>? pages, IProgress<string>? progress, CancellationToken cancellationToken);
+
+    /// <summary>People entered, left or changed clothes. Raised on a network thread.</summary>
+    event Action? RoomUsersChanged;
+
+    /// <summary>You clicked a Habbo in the game. Raised on a network thread.</summary>
+    event Action<RoomUser>? UserPicked;
     Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool decryptPackets, CancellationToken cancellationToken);
     Task SendPacketToClientAsync(string message);
     Task SendPacketToServerAsync(string message);
@@ -82,9 +118,59 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
     public CryptoDiagnostics? CryptoDiagnostics => _session?.Modifier?.GetDiagnostics();
 
+    // Answers clicks on client-side furni placed by HNice (the server does not know those items).
+    private readonly LocalInteractions _local = new();
+
+    public StatusEntry? MyStatus => _local.MyStatus;
+
+    public void RegisterFakeItem(string itemId) => _local.RegisterFakeItem(itemId);
+
+    public void RegisterFakeMachine(string itemId, int x, int y, int rotation, string drink) =>
+        _local.RegisterFakeMachine(itemId, x, y, rotation, drink);
+
+    public IReadOnlyList<RoomUser> RoomUsers => _local.OtherUsers;
+
+    public bool? IsFloorTile(int x, int y) => _local.IsFloorTile(x, y);
+
+    public int ExtraUsersInRoom { get => _local.ExtraUsers; set => _local.ExtraUsers = value; }
+
+    public FurniCatalog Catalog { get; } = FurniCatalog.LoadDefault();
+
+    public Mimic Mimic { get; } = new();
+
+    // Lets the mime notice a walk the server ignored (furni on that tile) even when the room is quiet.
+    private Timer? _mimicTimer;
+
+    public Task<int> FetchCatalogAsync(IEnumerable<string>? pages, IProgress<string>? progress, CancellationToken cancellationToken) =>
+        Catalog.FetchAsync(pages, SendPacketToServerAsync, progress, cancellationToken);
+
+    public int? MyRoomIndex => _local.MyRoomIndex;
+
+    public event Action? RoomUsersChanged
+    {
+        add => _local.UsersChanged += value;
+        remove => _local.UsersChanged -= value;
+    }
+
+    public event Action<RoomUser>? UserPicked
+    {
+        add => _local.UserPicked += value;
+        remove => _local.UserPicked -= value;
+    }
+
     public TcpInterceptorWorker(ILogger<TcpInterceptorWorker> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        Mimic.Started += target => _logger.LogInformation("Mime: copying {Name} (slot {Index}) from {Time:HH:mm:ss.fff}", target.DisplayName, target.Index, DateTime.Now);
+        Mimic.Notice += text => _logger.LogInformation("Mime: {Notice}", text);
+        Mimic.Stopped += reason => _logger.LogInformation("Mime: stopped at {Time:HH:mm:ss.fff}: {Reason}", DateTime.Now, reason);
+        Mimic.IsFree = (x, y) => _local.IsFloorTile(x, y) != false && !_local.OtherUsers.Any(u => u.X == x && u.Y == y);
+        _mimicTimer = new Timer(_ =>
+        {
+            if (!Mimic.IsRunning) return;
+            foreach (var action in Mimic.Tick(MyStatus, DateTime.UtcNow)) _ = SendMimicAsync(action);
+        }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
     }
 
     public async Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool decryptPackets, CancellationToken cancellationToken)
@@ -206,11 +292,33 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                 var packets = session.Modifier.ClientToProxy(buffer.AsSpan(0, bytesRead));
                 if (packets.Length == 0) continue;
 
-                await session.SendToServerAsync(packets, cancellationToken).ConfigureAwait(false);
+                // Clicks on HNice's own furni never reach the server; their replies are produced locally.
+                var toServer = new List<byte[]>(packets.Length);
+                var toClient = new List<string>();
+                foreach (var packet in packets)
+                {
+                    var decision = _local.HandleOutbound(packet);
+                    if (!decision.Drop) toServer.Add(packet);
+                    toClient.AddRange(decision.InjectNow);
+                    foreach (var (later, delay) in decision.InjectLater)
+                    {
+                        _ = SendToClientLaterAsync(later, delay);
+                    }
+                }
+
+                if (toServer.Count > 0)
+                {
+                    await session.SendToServerAsync(toServer, cancellationToken).ConfigureAwait(false);
+                }
 
                 foreach (var packet in packets)
                 {
                     AddOutboundPacketLog(PacketEncoding.GetString(packet));
+                }
+
+                foreach (var reply in toClient)
+                {
+                    await SendPacketToClientAsync(reply).ConfigureAwait(false);
                 }
             }
             _logger.LogInformation("Client closed the connection");
@@ -243,11 +351,48 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                     packets = session.Modifier.ServerToProxy(buffer.AsSpan(0, bytesRead));
                     if (packets.Length == 0) continue;
 
-                    await session.SendToClientAsync(packets, cancellationToken).ConfigureAwait(false);
+                    // Tracks the room, keeps a locally given drink in your hand, and finishes machine use on arrival.
+                    var injections = new List<(string Packet, TimeSpan Delay)>();
+                    for (var i = 0; i < packets.Length; i++)
+                    {
+                        packets[i] = _local.RewriteInbound(packets[i], injections);
+                    }
+
+                    // Catalogue pages requested by HNice itself are recorded but kept from the game window.
+                    var toClient = packets.Where(packet => !Catalog.Observe(packet)).ToArray();
+                    if (toClient.Length > 0)
+                    {
+                        await session.SendToClientAsync(toClient, cancellationToken).ConfigureAwait(false);
+                    }
 
                     foreach (var packet in packets)
                     {
                         AddInboundPacketLog(PacketEncoding.GetString(packet));
+                    }
+
+                    // The mime answers what the person it copies just did.
+                    if (Mimic.IsRunning)
+                    {
+                        foreach (var packet in packets)
+                        {
+                            foreach (var action in Mimic.Plan(PacketEncoding.GetString(packet), MyStatus, DateTime.UtcNow))
+                            {
+                                _ = SendMimicAsync(action);
+                            }
+                        }
+                    }
+
+                    // Local replies (e.g. a fake machine's animation) go after the server's packets.
+                    foreach (var (injected, delay) in injections)
+                    {
+                        if (delay == TimeSpan.Zero)
+                        {
+                            await SendPacketToClientAsync(injected).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            _ = SendToClientLaterAsync(injected, delay);
+                        }
                     }
                 }
 
@@ -309,6 +454,21 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         }
     }
 
+    private async Task SendMimicAsync(MimicAction action)
+    {
+        if (action.Delay > TimeSpan.Zero) await Task.Delay(action.Delay).ConfigureAwait(false);
+        if (!Mimic.IsStillWanted(action)) return;
+        await SendPacketToServerAsync(action.Packet).ConfigureAwait(false);
+        _logger.LogInformation("Mime: {Activity}", action.Activity);
+        Mimic.NotifySent(action);
+    }
+
+    private async Task SendToClientLaterAsync(string packet, TimeSpan delay)
+    {
+        await Task.Delay(delay).ConfigureAwait(false);
+        await SendPacketToClientAsync(packet).ConfigureAwait(false);
+    }
+
     private async Task HandleIncomingPacketAsync(byte[] packetBytes)
     {
         try
@@ -333,10 +493,16 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                     _logger.LogInformation("Server RIGHTS packet: {Packet}", PacketEncoding.GetString(packetBytes));
                     break;
                 case IncomingPacketMessage.USER_OBJ:
-                    if (_playerInfo is not null) break;
+                    // The server resends this after every wardrobe save: always keep the latest real look.
+                    // (Imitate's local USER_OBJ goes straight to the client and never reaches this handler.)
+                    var firstLogin = _playerInfo is null;
                     _playerInfo = new HabboPlayer(PacketEncoding.GetString(packetBytes, 2, packetBytes.Length - 2));
+                    _local.SetMe(_playerInfo.UserId, _playerInfo.HabboName);
                     PlayerChanged?.Invoke(_playerInfo);
-                    await SendPacketToClientAsync("BK" + "Welcome to Habbo Nice [" + _playerInfo.HabboName + "] by Samus").ConfigureAwait(false);
+                    if (firstLogin)
+                    {
+                        await SendPacketToClientAsync("BK" + "Welcome to Habbo Nice [" + _playerInfo.HabboName + "] by Samus").ConfigureAwait(false);
+                    }
                     break;
                 case IncomingPacketMessage.STATUS:
                     var roomId = _playerInfo?.DynamicRoomID;
@@ -388,6 +554,8 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             _session = session;
             _playerInfo = null;
         }
+        _local.Reset();
+        Mimic.Stop("The connection was reset.");
     }
 
     /// <param name="session">Session to close, or null to close whatever session is active.</param>
@@ -411,6 +579,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     // Implementing IDisposable
     public void Dispose()
     {
+        _mimicTimer?.Dispose();
         CloseSession(null);
         GC.SuppressFinalize(this);
     }

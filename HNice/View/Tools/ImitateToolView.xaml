@@ -1,12 +1,43 @@
 <UserControl x:Class="HNice.View.Tools.ImitateToolView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel>
-        <Button Content="Start from my avatar" HorizontalAlignment="Left" Margin="0,0,0,20"
-                Command="{Binding UseMyAvatarCommand}" ToolTip="Available once you are logged in" />
+    <UserControl.Resources>
+        <!-- Name + motto for the people list. -->
+        <DataTemplate x:Key="PersonItem">
+            <StackPanel>
+                <TextBlock Text="{Binding DisplayName}" />
+                <TextBlock Text="{Binding DisplayMotto}" FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="300"
+                           Visibility="{Binding DisplayMotto, Converter={StaticResource HasValue}}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
 
+    <StackPanel>
+        <!-- ===== Pick someone ===== -->
+        <Border Style="{StaticResource Card}" Background="{StaticResource Surface1}" Padding="14,12" Margin="0,0,0,20">
+            <StackPanel>
+                <CheckBox Content="Pick by clicking a Habbo in the game" IsChecked="{Binding PickFromGame}" />
+                <CheckBox Content="Wear the look right away" IsChecked="{Binding ApplyOnPick}" Margin="0,8,0,0"
+                          IsEnabled="{Binding PickFromGame}" />
+                <TextBlock Style="{StaticResource Hint}" Text="{Binding PickMessage}" Foreground="{StaticResource Gold}" Margin="0,10,0,12" />
+
+                <TextBlock Style="{StaticResource FieldLabel}" Text="People in the room" />
+                <ComboBox ItemsSource="{Binding People}" SelectedItem="{Binding SelectedPerson}"
+                          ItemTemplate="{StaticResource PersonItem}" AutomationProperties.Name="People in the room"
+                          Visibility="{Binding People.Count, Converter={StaticResource HasValue}}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Nobody else here yet. Enter a room with people."
+                           Visibility="{Binding People.Count, Converter={StaticResource NoValue}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ===== Look ===== -->
         <StackPanel Style="{StaticResource Section}">
-            <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
+            <DockPanel Margin="0,0,0,5">
+                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Use my avatar" Padding="6,2" MinHeight="0"
+                        Command="{Binding UseMyAvatarCommand}" ToolTip="Available once you are logged in" />
+                <TextBlock Style="{StaticResource FieldLabel}" Margin="0" Text="Name" VerticalAlignment="Bottom" />
+            </DockPanel>
             <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Name" />
             <TextBlock Style="{StaticResource FieldLabel}" Text="Figure" Margin="0,12,0,5" />
             <TextBox Style="{StaticResource MonoInput}" Text="{Binding Figure, UpdateSourceTrigger=PropertyChanged}"
@@ -29,13 +60,20 @@
             </StackPanel>
             <StackPanel Margin="24,0,0,0">
                 <TextBlock Style="{StaticResource FieldLabel}" Text="User id" />
-                <TextBox Style="{StaticResource NumberInput}" Width="100" Text="{Binding UserId}" AutomationProperties.Name="User id" />
+                <TextBox Style="{StaticResource NumberInput}" Width="100" Text="{Binding UserId}" AutomationProperties.Name="User id"
+                         ToolTip="Your own id is used automatically once you are logged in" />
             </StackPanel>
         </StackPanel>
 
-        <Button Style="{StaticResource AccentButton}" Content="Apply look" HorizontalAlignment="Left" MinWidth="160"
-                Command="{Binding ImitateCommand}" IsDefault="True" />
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource AccentButton}" Content="Apply look" MinWidth="140"
+                    Command="{Binding ImitateCommand}" IsDefault="True"
+                    ToolTip="Only on your screen" />
+            <Button Content="Wear it for real" MinWidth="140" Margin="8,0,0,0"
+                    Command="{Binding WearForRealCommand}"
+                    ToolTip="Saves this figure through the wardrobe. Needs your own gender and a logged-in session." />
+        </StackPanel>
         <TextBlock Style="{StaticResource Disclosure}"
-                   Text="Changes how you see yourself. Other players keep seeing your real avatar." />
+                   Text="Apply look changes only your screen. Wear it for real saves the figure through the wardrobe, so everyone sees it; the server drops items your account cannot wear. Your name, gender and motto stay yours." />
     </StackPanel>
 </UserControl>

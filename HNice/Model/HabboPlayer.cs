@@ -5,6 +5,9 @@ namespace HNice.Model;
 public sealed class HabboPlayer
 {
     public int? UserId { get; set; }
+
+    /// <summary>The USER_OBJ body as received (after the header), used to rebuild it with another look.</summary>
+    public string RawBody { get; }
     public string HabboName { get; set; }
     public string HabboFigure { get; set; }
     public string HabboSex { get; set; }
@@ -22,6 +25,7 @@ public sealed class HabboPlayer
 
     public HabboPlayer(string packetData)
     {
+        RawBody = packetData;
         if (!packetData.Contains('='))
         {
             ParseUserObject(packetData);

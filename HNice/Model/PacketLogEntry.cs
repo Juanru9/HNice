@@ -28,8 +28,11 @@ public sealed class PacketLogEntry
     /// <summary>Known message name for the header, e.g. "USER_OBJ", or the numeric id when unknown.</summary>
     public string HeaderName { get; }
 
-    /// <summary>The packet after the header, with control chars shown as [1] [2] [9] [13].</summary>
+    /// <summary>The packet after the header for display: UTF-8 text decoded, control chars shown as [1] [2] [9] [13].</summary>
     public string Body { get; }
+
+    // Byte-exact escaped body, for the composer.
+    private readonly string _rawBody;
 
     public PacketLogEntry(PacketDirection direction, string raw)
     {
@@ -44,23 +47,26 @@ public sealed class PacketLogEntry
             HeaderName = (direction == PacketDirection.Inbound
                 ? Enum.GetName(typeof(IncomingPacketMessage), id)
                 : Enum.GetName(typeof(OutcomingPacketMessage), id)) ?? id.ToString();
-            Body = PacketText.Escape(raw[2..]);
+            _rawBody = PacketText.Escape(raw[2..]);
+            Body = PacketText.Escape(PacketText.FromWire(raw[2..]));
         }
         else
         {
             // Encrypted or partial data (passthrough mode): no readable header.
             Header = string.Empty;
             HeaderName = "raw";
-            Body = PacketText.Escape(raw);
+            _rawBody = PacketText.Escape(raw);
+            Body = _rawBody;
         }
     }
 
     public string TimeText => Time.ToString("HH:mm:ss.fff");
 
-    /// <summary>Escaped header + body, ready for the composer.</summary>
-    public string Escaped => Header + Body;
+    /// <summary>Escaped header + body, byte-exact, ready for the composer.</summary>
+    public string Escaped => Header + _rawBody;
 
-    public override string ToString() => $"{TimeText} {(IsInbound ? "IN " : "OUT")} {HeaderName,-18} {Escaped}";
+    /// <summary>Line used by Copy: time, direction arrow, message name and the readable packet.</summary>
+    public override string ToString() => $"{TimeText} {(IsInbound ? "←" : "→")} {HeaderName,-18} {Header}{Body}";
 
     private static bool IsB64(char c) => c >= 0x40 && c <= 0x7F;
 }

@@ -17,7 +17,9 @@ public sealed class EqualsConverter : IValueConverter
     {
         if (value is not true || parameter is null) return Binding.DoNothing;
         var underlying = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        return underlying == typeof(string) ? parameter.ToString() : System.Convert.ChangeType(parameter, underlying, CultureInfo.InvariantCulture);
+        if (underlying == typeof(string)) return parameter.ToString();
+        if (underlying.IsEnum) return Enum.Parse(underlying, parameter.ToString()!);
+        return System.Convert.ChangeType(parameter, underlying, CultureInfo.InvariantCulture);
     }
 }
 

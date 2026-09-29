@@ -16,6 +16,9 @@ public sealed class IncomingPacketReader
 
     public bool HasMore => _position < _body.Length;
 
+    /// <summary>The unread rest of the body.</summary>
+    public string Remaining => _body[_position..];
+
     public string ReadString()
     {
         var end = _body.IndexOf(Constants.PACKET_SPLITTER, _position);

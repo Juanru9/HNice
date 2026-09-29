@@ -1,12 +1,138 @@
 <UserControl x:Class="HNice.View.Tools.FurniToolView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- One catalogue row: colour swatches, name, sprite, size. -->
+        <Style x:Key="FurniRow" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusSm}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource GoldSoft}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="Swatches">
+            <ItemsControl ItemsSource="{Binding Swatches}" VerticalAlignment="Center" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Ellipse Width="9" Height="9" Margin="0,0,3,0" Fill="{Binding}"
+                                 Stroke="{StaticResource BorderStrongBrush}" StrokeThickness="1" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <StackPanel>
-        <StackPanel Style="{StaticResource Section}">
-            <TextBlock Style="{StaticResource FieldLabel}" Text="Sprite" />
-            <TextBox Style="{StaticResource MonoInput}" Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}"
-                     AutomationProperties.Name="Sprite name" />
-            <ItemsControl ItemsSource="{Binding SuggestedSprites}" Margin="0,8,0,0">
+        <!-- ===== Catalogue source ===== -->
+        <DockPanel Margin="0,0,0,14">
+            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="{Binding FetchButtonText}"
+                    Command="{Binding FetchCatalogCommand}" VerticalAlignment="Center"
+                    ToolTip="Asks the server for every catalogue page, one per second. Needs a logged-in session and the catalogue opened once in the game." />
+            <TextBlock Style="{StaticResource Hint}" Text="{Binding CatalogStatus}" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="0,0,12,0" />
+        </DockPanel>
+
+        <!-- Empty state -->
+        <Border Style="{StaticResource Card}" Margin="0,0,0,20"
+                Visibility="{Binding IsCatalogEmpty, Converter={StaticResource HasValue}}">
+            <StackPanel>
+                <TextBlock Text="Fill the furni catalogue" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" LineHeight="20">
+                    <Run Text="1. Connect and log in." /><LineBreak />
+                    <Run Text="2. Open the catalogue in the game once." /><LineBreak />
+                    <Run Text="3. Press Load whole catalogue. It takes about a minute; the game window is not disturbed." />
+                </TextBlock>
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,10,0,0"
+                           Text="The catalogue is saved, so this is needed only once. You can still type a sprite under Advanced." />
+            </StackPanel>
+        </Border>
+
+        <!-- ===== Browse ===== -->
+        <StackPanel Style="{StaticResource Section}" Visibility="{Binding IsCatalogEmpty, Converter={StaticResource NoValue}}">
+            <Grid Margin="0,0,0,8">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" Tag="Search name or sprite"
+                         AutomationProperties.Name="Search furni" Padding="8,6,30,6" />
+                <Button Style="{StaticResource GhostButton}" Content="✕" HorizontalAlignment="Right" Padding="8,2" MinHeight="0"
+                        Margin="0,0,2,0" Command="{Binding ClearSearchCommand}" ToolTip="Clear search"
+                        AutomationProperties.Name="Clear search"
+                        Visibility="{Binding SearchText, Converter={StaticResource HasValue}}" />
+            </Grid>
+            <ComboBox ItemsSource="{Binding PagesView}" SelectedItem="{Binding SelectedPage}" DisplayMemberPath="Caption"
+                      AutomationProperties.Name="Catalogue page">
+                <ComboBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Name}" Margin="8,8,0,2"
+                                           Visibility="{Binding Name, Converter={StaticResource HasValue}}" />
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ComboBox.GroupStyle>
+            </ComboBox>
+
+            <TextBlock Style="{StaticResource Hint}" Text="{Binding ResultSummary}" Margin="0,10,0,4" />
+            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusSm}"
+                    Background="{StaticResource Surface1}" Padding="3">
+                <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedItem}" Height="280"
+                         ItemContainerStyle="{StaticResource FurniRow}" AutomationProperties.Name="Furni"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ToolTip="{Binding Description}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Swatches}" />
+                                        <TextBlock Text="{Binding Sprite}" FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding SizeText}" FontFamily="{StaticResource MonoFont}"
+                                           FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </StackPanel>
+
+        <!-- Recent picks -->
+        <StackPanel Style="{StaticResource Section}" Visibility="{Binding HasRecent, Converter={StaticResource HasValue}}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Recently placed" />
+            <ItemsControl ItemsSource="{Binding Recent}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel />
@@ -14,35 +140,57 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Button Style="{StaticResource ChipButton}" Content="{Binding}"
-                                Command="{Binding DataContext.PickSpriteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        <Button Style="{StaticResource ChipButton}" Content="{Binding DisplayName}" ToolTip="{Binding Sprite}"
+                                Command="{Binding DataContext.PickRecentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </StackPanel>
 
+        <!-- ===== Selected furni ===== -->
+        <Border Style="{StaticResource Card}" Margin="0,0,0,20" DataContext="{Binding SelectedItem}"
+                Visibility="{Binding Converter={StaticResource HasValue}}">
+            <StackPanel>
+                <TextBlock Text="{Binding DisplayName}" FontSize="{StaticResource TextMd}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Hint}" Text="{Binding Description}" TextWrapping="Wrap" Margin="0,4,0,8"
+                           Visibility="{Binding Description, Converter={StaticResource HasValue}}" />
+                <WrapPanel>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Swatches}" Margin="0,0,6,0" />
+                    <TextBlock FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}" FontFamily="{StaticResource MonoFont}">
+                        <Run Text="{Binding Sprite, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding SizeText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Price, Mode=OneWay}" /><Run Text=" cr  ·  " /><Run Text="{Binding PageCaption, Mode=OneWay}" />
+                    </TextBlock>
+                </WrapPanel>
+                <TextBlock Style="{StaticResource Hint}" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Text="Wall item. Hang it with the Posters tool using this sprite."
+                           Visibility="{Binding IsWallItem, Converter={StaticResource HasValue}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ===== Place ===== -->
         <StackPanel Style="{StaticResource Section}">
-            <TextBlock Style="{StaticResource FieldLabel}" Text="Position" />
-            <StackPanel Orientation="Horizontal">
+            <CheckBox Content="Next to me, on the tile I face" IsChecked="{Binding PlaceNextToMe}" />
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                        Visibility="{Binding PlaceNextToMe, Converter={StaticResource NoValue}}">
                 <TextBlock Text="X" Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <TextBox Style="{StaticResource NumberInput}" Text="{Binding XCoord}" AutomationProperties.Name="X" />
                 <TextBlock Text="Y" Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="12,0,6,0" />
                 <TextBox Style="{StaticResource NumberInput}" Text="{Binding YCoord}" AutomationProperties.Name="Y" />
             </StackPanel>
             <TextBlock Style="{StaticResource FieldLabel}" Text="Facing" Margin="0,12,0,5" />
-            <Border Style="{StaticResource SegmentGroup}">
+            <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left"
+                    ToolTip="Most furni are drawn only in these two directions; others can show a placeholder box.">
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="0" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=0}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="2" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=2}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="4" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=4}" />
-                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="6" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=6}" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="↘ 2" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=2}" />
+                    <RadioButton Style="{StaticResource Segment}" GroupName="furniRot" Content="↙ 4" IsChecked="{Binding Rotation, Converter={StaticResource Equals}, ConverterParameter=4}" />
                 </StackPanel>
             </Border>
         </StackPanel>
 
         <Button Style="{StaticResource AccentButton}" Content="Place furni" HorizontalAlignment="Left" MinWidth="160"
                 Command="{Binding PlaceFurniCommand}" IsDefault="True" />
+        <TextBlock Style="{StaticResource Hint}" Text="{Binding PlaceMessage}" Foreground="{StaticResource Gold}" TextWrapping="Wrap"
+                   Margin="0,8,0,0" Visibility="{Binding PlaceMessage, Converter={StaticResource HasValue}}" />
 
         <Expander Header="Advanced" Margin="0,20,0,0">
             <Grid>
@@ -54,19 +202,28 @@
                     <RowDefinition />
                     <RowDefinition />
                     <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
                 </Grid.RowDefinitions>
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Item id" VerticalAlignment="Center" Margin="0,0,12,6" />
-                <TextBox Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding FurniId}" Margin="0,0,0,6" />
-                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Owner id" VerticalAlignment="Center" Margin="0,0,12,6" />
-                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding OwnerId}" Margin="0,0,0,6"
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Sprite" VerticalAlignment="Center" Margin="0,0,12,6" />
+                <TextBox Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding SpriteName, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,0,6" AutomationProperties.Name="Sprite" ToolTip="Any furni class, e.g. chair_plasto*9" />
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Colours" VerticalAlignment="Center" Margin="0,0,12,6" />
+                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding Colors}" Margin="0,0,0,6"
+                         AutomationProperties.Name="Colours" ToolTip="Part colours, comma separated. Filled from the catalogue." />
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Item id" VerticalAlignment="Center" Margin="0,0,12,6" />
+                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding FurniId}" Margin="0,0,0,6"
+                         ToolTip="Goes up by one after each placement, so furni do not replace each other" />
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Owner id" VerticalAlignment="Center" Margin="0,0,12,6" />
+                <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding OwnerId}" Margin="0,0,0,6"
                          ToolTip="0 uses your own user id" />
-                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="State" VerticalAlignment="Center" Margin="0,0,12,0" />
-                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding ExtraData}"
+                <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="State" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource MonoInput}" Text="{Binding ExtraData}"
                          ToolTip="Optional digit some furni carry (on/off, value). Leave empty." />
             </Grid>
         </Expander>
 
         <TextBlock Style="{StaticResource Disclosure}"
-                   Text="Drawn on your screen only. Unknown sprites show as a placeholder box, and the furni cannot be used." />
+                   Text="Drawn on your screen only. Leaving the room removes it. Multi-tile furni use their catalogue size." />
     </StackPanel>
 </UserControl>

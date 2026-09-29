@@ -40,8 +40,15 @@ public static class ClientPacketBuilder
             string.Concat(list.Select(p => p + FieldSeparator));
     }
 
-    /// <summary>USER_OBJ: overwrites the client's idea of its own avatar (figure, sex, mission...).</summary>
-    public static string UserObject(int userId, string name, string figure, string sex, string mission = "")
+    /// <summary>Everything after the motto in a live USER_OBJ (tickets, film, mail and flags).</summary>
+    public const string DefaultUserObjectTail = "HHHIIIIIIHHI";
+
+    /// <summary>
+    /// USER_OBJ: overwrites the client's idea of its own avatar (name, figure, sex, motto).
+    /// Live layout: id(VL64) name[2] figure[2] sex[2] motto[2] then <paramref name="tail"/>. Pass the tail of your
+    /// real USER_OBJ to keep the other fields unchanged.
+    /// </summary>
+    public static string UserObject(int userId, string name, string figure, string sex, string mission = "", string? tail = null)
     {
         var sb = new StringBuilder();
         sb.Append(Header(IncomingPacketMessage.USER_OBJ));
@@ -50,31 +57,29 @@ public static class ClientPacketBuilder
         sb.Append(figure).Append(FieldSeparator);
         sb.Append(sex).Append(FieldSeparator);
         sb.Append(mission).Append(FieldSeparator);
+        sb.Append(tail ?? DefaultUserObjectTail);
         return sb.ToString();
     }
 
-    /// <summary>USERS: spawns an avatar (bot / clone / pet) in the room the user is currently viewing.</summary>
-    public static string SpawnUser(int roomIndex, string name, string figure, int x, int y, string sex = "M", string mission = "")
-    {
-        return Build(IncomingPacketMessage.USERS,
-            roomIndex.EncodeVL64() + name,
-            figure,
-            $"{x.EncodeVL64()}{y.EncodeVL64()}0.0",
-            sex,
-            mission);
-    }
+    /// <summary>Live header of the "someone changed clothes" packet (266).</summary>
+    public const int UserLookChangedHeader = 266;
 
-    /// <summary>STATUS: places/moves an entity, e.g. a teleport or a fake room-control flag.</summary>
-    public static string Status(int roomIndex, string body) => Header(IncomingPacketMessage.STATUS) + roomIndex.EncodeVL64() + body;
+    /// <summary>
+    /// 266 (DJ): changes how an avatar in the room looks, as the server does when someone changes clothes.
+    /// Live layout: index(VL64) figure[2] sex[2] motto[2], sex in lowercase ("m"/"f").
+    /// </summary>
+    public static string UserLook(int roomIndex, string figure, string sex, string motto) =>
+        UserLookChangedHeader.EncodeB64() + roomIndex.EncodeVL64() +
+        figure + FieldSeparator + sex.ToLowerInvariant() + FieldSeparator + motto + FieldSeparator;
 
     /// <summary>
     /// ACTIVEOBJECTS (@`): one floor furni. Format reverse-engineered from the live server:
     /// header + VL64(count) + [ id [2] ownerId(VL64)+sprite [2] location [2] colors [2] (empty) [2] "HHH"+state ].
-    /// Location is x(VL64) y(VL64) "II" dir(VL64) "0.0". Purely a local visual; the server has no such object.
+    /// Location is x(VL64) y(VL64) width(VL64) length(VL64) dir(VL64) "0.0". Purely a local visual; the server has no such object.
     /// </summary>
-    public static string ActiveObject(string id, int ownerId, string sprite, int x, int y, int direction, string colors = "", string state = "")
+    public static string ActiveObject(string id, int ownerId, string sprite, int x, int y, int direction, string colors = "", string state = "", int width = 1, int length = 1)
     {
-        var location = x.EncodeVL64() + y.EncodeVL64() + "II" + direction.EncodeVL64() + "0.0";
+        var location = x.EncodeVL64() + y.EncodeVL64() + width.EncodeVL64() + length.EncodeVL64() + direction.EncodeVL64() + "0.0";
         return Header(IncomingPacketMessage.ACTIVEOBJECTS) + 1.EncodeVL64() +
             id + FieldSeparator +
             ownerId.EncodeVL64() + sprite + FieldSeparator +

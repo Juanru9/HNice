@@ -48,12 +48,13 @@ public partial class MainWindow : Window
 
     private void UseInComposer_Click(object sender, RoutedEventArgs e) => UseSelectedInComposer();
 
-    // Copies the escaped packets, one per line, in log order.
+    // Copies one line per packet, in log order: time, direction, message name and escaped packet.
+    // (Double-click / "Edit in composer" is the way to reuse the raw packet.)
     private void CopySelected()
     {
         var lines = LogList.SelectedItems.Cast<PacketLogEntry>()
             .OrderBy(entry => LogList.Items.IndexOf(entry))
-            .Select(entry => entry.Escaped)
+            .Select(entry => entry.ToString())
             .ToList();
         if (lines.Count > 0)
         {

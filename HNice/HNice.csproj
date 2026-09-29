@@ -20,6 +20,7 @@
   <ItemGroup>
     <Content Include="Assets\HNice.ico" />
     <Resource Include="Assets\HNice.ico" />
+    <Content Include="Assets\catalog.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

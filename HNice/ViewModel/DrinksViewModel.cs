@@ -75,8 +75,47 @@ class DrinksViewModel : BaseViewModel
         _selectedFurni = FurniName.First().Value;
     }
 
-    private Task Place(string sprite) =>
-        OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", Worker.CurrentPlayer?.UserId ?? 1, sprite.Trim(), XCoord, YCoord, Rotation));
+    private const string MachineId = "999000002";
+
+    // Drink handed out per machine. Cola = 19 was captured from the client's own request; the real minibar gave 1.
+    private static readonly Dictionary<string, string> DrinkBySprite = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "md_limukaappi", "19" },
+    };
+    private const string DefaultDrink = "1";
+
+    private bool _placeInFrontOfMe = true;
+    /// <summary>Put the machine on the tile you face, turned toward you, so you can use it without walking.</summary>
+    public bool PlaceInFrontOfMe
+    {
+        get => _placeInFrontOfMe;
+        set { _placeInFrontOfMe = value; OnPropertyChanged(); }
+    }
+
+    private Task Place(string sprite)
+    {
+        // Standing on the machine's tile confuses the client (it keeps walking you to the front and never uses it),
+        // so by default it goes on the tile in front of you, facing you.
+        if (PlaceInFrontOfMe && Worker.MyStatus is { } me)
+        {
+            // Drink machines are only drawn facing 2 or 4 (any other direction renders a placeholder box),
+            // so they can only face you from your west (facing 2) or your north (facing 4).
+            // Pick the one closest to where you look.
+            var lookingNorth = me.BodyRotation is 0 or 1 or 7;
+            XCoord = lookingNorth ? me.X : me.X - 1;
+            YCoord = lookingNorth ? me.Y - 1 : me.Y;
+            Rotation = lookingNorth ? 4 : 2;
+        }
+        else if (Rotation is not (2 or 4))
+        {
+            Rotation = 2;
+        }
+
+        var name = sprite.Trim();
+        // Registered so using it is answered locally: animation + drink in your hand.
+        Worker.RegisterFakeMachine(MachineId, XCoord, YCoord, Rotation, DrinkBySprite.GetValueOrDefault(name, DefaultDrink));
+        return OnSendToClient(ClientPacketBuilder.ActiveObject(MachineId, Worker.CurrentPlayer?.UserId ?? 1, name, XCoord, YCoord, Rotation));
+    }
 
     // Raised from the network thread.
     private void UpdateMachineCoords(Coordinate coords)

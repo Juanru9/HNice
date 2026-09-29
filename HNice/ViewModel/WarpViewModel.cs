@@ -43,7 +43,12 @@ class WarpViewModel : BaseViewModel
         return Warp();
     }
 
-    // Body format mirrors the room STATUS layout: "<x>,<y>,0.0,<dir>,<dir>/".
-    private Task Warp() =>
-        OnSendToClient(ClientPacketBuilder.Status(RoomIndex, $" {XCoord},{YCoord},0.0,6,6/"));
+    // Real STATUS layout (captured live): your avatar index, tile, height and rotation. Your index is
+    // learned automatically after you move or turn once; the Room slot field is only the fallback.
+    private Task Warp()
+    {
+        var me = Worker.MyStatus;
+        var entry = new StatusEntry(me?.Index ?? RoomIndex, XCoord, YCoord, me?.Z ?? "0.0", me?.HeadRotation ?? 2, me?.BodyRotation ?? 2, me?.Actions ?? "/");
+        return OnSendToClient(RoomStatus.Build(new[] { entry }));
+    }
 }

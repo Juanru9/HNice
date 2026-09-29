@@ -1,0 +1,100 @@
+<UserControl x:Class="HNice.View.Tools.MimicToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="clr-namespace:HNice.Service">
+    <UserControl.Resources>
+        <DataTemplate x:Key="PersonItem">
+            <StackPanel>
+                <TextBlock Text="{Binding ListName}" />
+                <TextBlock Text="{Binding DisplayMotto}" FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="300"
+                           Visibility="{Binding DisplayMotto, Converter={StaticResource HasValue}}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- ===== Who ===== -->
+        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,20">
+            <StackPanel>
+                <CheckBox Content="Pick by clicking a Habbo in the game" IsChecked="{Binding PickFromGame}" />
+                <CheckBox Content="While copying, a click switches person" IsChecked="{Binding SwitchOnClick}" Margin="24,8,0,0"
+                          IsEnabled="{Binding PickFromGame}"
+                          ToolTip="Off: clicking someone while copying only tells you who it is, so a stray click does not change the person you copy." />
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Person to copy" Margin="0,12,0,5" />
+                <ComboBox ItemsSource="{Binding People}" SelectedItem="{Binding SelectedPerson}"
+                          ItemTemplate="{StaticResource PersonItem}" AutomationProperties.Name="Person to copy"
+                          Visibility="{Binding People.Count, Converter={StaticResource HasValue}}" />
+                <TextBlock Style="{StaticResource Hint}" Text="Nobody else here yet. Enter a room with people."
+                           Visibility="{Binding People.Count, Converter={StaticResource NoValue}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ===== What to copy ===== -->
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Copy" />
+            <WrapPanel>
+                <ToggleButton Style="{StaticResource TogglePill}" IsChecked="{Binding CopyMoves}" Margin="0,0,6,6"
+                              ToolTip="Walk where they walk and turn when they turn">
+                    <TextBlock><Run FontFamily="{DynamicResource IconFont}" Text="&#xE805;" />  Walking</TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource TogglePill}" IsChecked="{Binding CopyGestures}" Margin="0,0,6,6"
+                              ToolTip="Wave and dance when they do">
+                    <TextBlock><Run FontFamily="{DynamicResource IconFont}" Text="&#xE76E;" />  Gestures</TextBlock>
+                </ToggleButton>
+                <ToggleButton Style="{StaticResource TogglePill}" IsChecked="{Binding CopySpeech}" Margin="0,0,6,6"
+                              ToolTip="Say or shout what they say, a moment later">
+                    <TextBlock><Run FontFamily="{DynamicResource IconFont}" Text="&#xE8BD;" />  Chat</TextBlock>
+                </ToggleButton>
+            </WrapPanel>
+            <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Text="Switch any of them on or off at any time, even while copying." />
+            <CheckBox Content="Don't repeat links or lines that mention me" IsChecked="{Binding SkipRiskyLines}" Margin="0,12,0,0"
+                      Visibility="{Binding CopySpeech, Converter={StaticResource HasValue}}"
+                      ToolTip="The person you copy could make you say anything. Skipped lines show in Just copied." />
+
+            <StackPanel Visibility="{Binding CopyMoves, Converter={StaticResource HasValue}}" Margin="0,14,0,0">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Where to stand" />
+                <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource Segment}" GroupName="mimicPos" Content="Keep my distance"
+                                     ToolTip="Move in step with them, keeping the gap you have when you start"
+                                     IsChecked="{Binding Position, Converter={StaticResource Equals}, ConverterParameter={x:Static svc:MimicPosition.KeepDistance}}" />
+                        <RadioButton Style="{StaticResource Segment}" GroupName="mimicPos" Content="Beside them"
+                                     ToolTip="Walk to the tile next to them and stay there"
+                                     IsChecked="{Binding Position, Converter={StaticResource Equals}, ConverterParameter={x:Static svc:MimicPosition.Beside}}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ===== Go ===== -->
+        <StackPanel Orientation="Horizontal">
+            <Button Style="{StaticResource AccentButton}" Content="{Binding ToggleText}" MinWidth="160"
+                    Command="{Binding ToggleCommand}"
+                    Visibility="{Binding IsRunning, Converter={StaticResource NoValue}}" />
+            <Button Style="{StaticResource DangerButton}" Content="{Binding ToggleText}" MinWidth="160"
+                    Command="{Binding ToggleCommand}"
+                    Visibility="{Binding IsRunning, Converter={StaticResource HasValue}}" />
+        </StackPanel>
+        <TextBlock Style="{StaticResource Hint}" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,10,0,0" />
+        <TextBlock Style="{StaticResource Hint}" Text="{Binding Message}" Foreground="{StaticResource Gold}" TextWrapping="Wrap"
+                   Margin="0,4,0,0" Visibility="{Binding Message, Converter={StaticResource HasValue}}" />
+
+        <!-- ===== Activity ===== -->
+        <StackPanel Margin="0,20,0,0" Visibility="{Binding Activity.Count, Converter={StaticResource HasValue}}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Just copied" />
+            <ItemsControl ItemsSource="{Binding Activity}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextXs}"
+                                   Foreground="{StaticResource TextMid}" TextTrimming="CharacterEllipsis" Margin="0,1" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Sent from your own account, so everyone in the room sees it. Chat is repeated a moment later and spaced out, so the hotel does not mute you for flooding. Stops by itself when they leave or you change rooms." />
+    </StackPanel>
+</UserControl>

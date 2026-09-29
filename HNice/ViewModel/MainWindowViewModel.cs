@@ -21,6 +21,12 @@ namespace HNice.ViewModel
         private readonly DispatcherTimer _flushTimer;
         private CancellationTokenSource? _cts;
 
+        // Full packet trace to a file, when started with --packet-trace <file>.
+        private readonly PacketTrace? _trace;
+
+        // Console-driven commands, when started with --command-file <file>.
+        private readonly CommandChannel? _commands;
+
         #region Connection
         private string _hotelAddress = "game-oes.habbo.com"; // By default we set Spain Address
         public string HotelAddress
@@ -215,6 +221,8 @@ namespace HNice.ViewModel
         public MainWindowViewModel(ITcpInterceptorWorker worker, ILogger<MainWindowViewModel> logger) : base(worker)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _trace = PacketTrace.FromStartup(logger);
+            _commands = CommandChannel.FromStartup(logger, RunCommandAsync);
 
             EntriesView = CollectionViewSource.GetDefaultView(Entries);
             EntriesView.Filter = MatchesFilter;
@@ -244,10 +252,11 @@ namespace HNice.ViewModel
             Tools.Add(new ToolItem("Credits", "Hotel", "", "Show any balance in your purse.", true, new CreditsViewModel(Worker)));
             Tools.Add(new ToolItem("Badges", "Hotel", "", "Add badges to your badge list.", true, new BadgesViewModel(Worker)));
             Tools.Add(new ToolItem("Drinks", "Room", "", "Drop a drink machine at your feet.", true, new DrinksViewModel(Worker)));
-            Tools.Add(new ToolItem("Furni", "Room", "", "Place any furni sprite in the room.", true, new FurnitureViewModel(Worker)));
+            Tools.Add(new ToolItem("Furni", "Room", "", "Browse the game's furni catalogue and place any item next to you.", true, new FurnitureViewModel(Worker)));
             Tools.Add(new ToolItem("Posters", "Room", "", "Hang a poster on a wall.", true, new RoomDecorViewModel(Worker)));
             Tools.Add(new ToolItem("Warp", "Room", "", "Move your avatar to any tile.", true, new WarpViewModel(Worker)));
             Tools.Add(new ToolItem("Imitate", "People", "", "Change how your own avatar looks.", true, new ImitateViewModel(Worker)));
+            Tools.Add(new ToolItem("Mime", "People", "", "Copy another Habbo's walking, gestures and chat. Everyone sees it.", false, new MimicViewModel(Worker)));
             Tools.Add(new ToolItem("Spawn user", "People", "", "Add a fake user or bot to the room.", true, new SpawnUserViewModel(Worker)));
             Tools.Add(new ToolItem("Messages", "Staff", "", "Fake hotel alerts and mod warnings.", true, new ModFunctionsViewModel(Worker)));
             Tools.Add(new ToolItem("Fuse rights", "Staff", "", "Unlock staff UI in your client.", true, new FuseViewModel(Worker)));
@@ -359,8 +368,11 @@ namespace HNice.ViewModel
             IsConnected = false;
         }
 
-        private void OnStatusChanged(ProxyStatus status) =>
+        private void OnStatusChanged(ProxyStatus status)
+        {
+            _trace?.Note($"status: {status}");
             Application.Current?.Dispatcher.BeginInvoke(() => Status = status);
+        }
 
         private void OnPlayerChanged(HabboPlayer player) =>
             Application.Current?.Dispatcher.BeginInvoke(() => PlayerName = player.HabboName ?? string.Empty);
@@ -368,14 +380,19 @@ namespace HNice.ViewModel
 
         #region Log
         // Raised from the network threads: only enqueue here.
+        // The trace records everything; the capture toggles only filter what the UI list shows.
         private void OnInboundPacket(string packet)
         {
-            if (_captureInbound) _pendingEntries.Enqueue(new PacketLogEntry(PacketDirection.Inbound, packet));
+            var entry = new PacketLogEntry(PacketDirection.Inbound, packet);
+            _trace?.Write(entry);
+            if (_captureInbound) _pendingEntries.Enqueue(entry);
         }
 
         private void OnOutboundPacket(string packet)
         {
-            if (_captureOutbound) _pendingEntries.Enqueue(new PacketLogEntry(PacketDirection.Outbound, packet));
+            var entry = new PacketLogEntry(PacketDirection.Outbound, packet);
+            _trace?.Write(entry);
+            if (_captureOutbound) _pendingEntries.Enqueue(entry);
         }
 
         private void FlushEntries()
@@ -404,6 +421,7 @@ namespace HNice.ViewModel
         {
             if (string.IsNullOrWhiteSpace(_filterText) || item is not PacketLogEntry entry) return true;
             return entry.HeaderName.Contains(_filterText, StringComparison.OrdinalIgnoreCase)
+                || entry.Body.Contains(_filterText, StringComparison.OrdinalIgnoreCase)
                 || entry.Escaped.Contains(_filterText, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -426,14 +444,44 @@ namespace HNice.ViewModel
         }
         #endregion
 
+        /// <summary>Runs one line from the command channel.</summary>
+        private async Task RunCommandAsync(string command)
+        {
+            _trace?.Note($"command: {command}");
+            var parts = command.Split(' ', 2);
+            var verb = parts[0].ToLowerInvariant();
+            var argument = parts.Length > 1 ? parts[1] : string.Empty;
+
+            switch (verb)
+            {
+                case "server":
+                    await Worker.SendPacketToServerAsync(PacketText.Unescape(argument));
+                    break;
+                case "client":
+                    await Worker.SendPacketToClientAsync(PacketText.Unescape(argument));
+                    break;
+                case "catalog" when argument.StartsWith("fetch", StringComparison.OrdinalIgnoreCase):
+                    var pages = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).ToList();
+                    var progress = new Progress<string>(p => _trace?.Note($"catalog: {p}"));
+                    var fetched = await Worker.FetchCatalogAsync(pages.Count > 0 ? pages : null, progress, _cts?.Token ?? CancellationToken.None);
+                    _trace?.Note($"catalog: fetched {fetched} pages, {Worker.Catalog.PagesLoaded} stored");
+                    break;
+                default:
+                    _trace?.Note($"unknown command: {verb}");
+                    break;
+            }
+        }
+
         public void Dispose()
         {
+            _commands?.Dispose();
             _flushTimer.Stop();
             Worker.OnAddInboundPacketLog -= OnInboundPacket;
             Worker.OnAddOutboundPacketLog -= OnOutboundPacket;
             Worker.StatusChanged -= OnStatusChanged;
             Worker.PlayerChanged -= OnPlayerChanged;
             HostEditor.RestoreHostsFile(LocalHost, HotelAddress);
+            _trace?.Dispose();
             GC.SuppressFinalize(this);
         }
     }

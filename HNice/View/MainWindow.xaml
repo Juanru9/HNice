@@ -19,6 +19,7 @@
         <DataTemplate DataType="{x:Type vm:RoomDecorViewModel}"><tools:PostersToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:WarpViewModel}"><tools:WarpToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ImitateViewModel}"><tools:ImitateToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MimicViewModel}"><tools:MimicToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SpawnUserViewModel}"><tools:SpawnUserToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ModFunctionsViewModel}"><tools:MessagesToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:FuseViewModel}"><tools:FuseToolView /></DataTemplate>
