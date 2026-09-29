@@ -18,11 +18,27 @@ public enum TrafficDirection
     ServerToClient
 }
 
+/// <summary>What the proxy is doing right now, for the status bar.</summary>
+public enum ProxyStatus
+{
+    Stopped,
+    Listening,
+    Connected,
+    Encrypted,
+    ConnectionFailed
+}
+
 public interface ITcpInterceptorWorker
 {
     event AddLog OnAddOutboundPacketLog;
     event AddLog OnAddInboundPacketLog;
     event UpdateCoords OnUpdateCoords;
+    event Action<ProxyStatus>? StatusChanged;
+    event Action<HabboPlayer>? PlayerChanged;
+    HabboPlayer? CurrentPlayer { get; }
+
+    /// <summary>Key exchange state of the active session; null when not decrypting or not connected.</summary>
+    CryptoDiagnostics? CryptoDiagnostics { get; }
     Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool decryptPackets, CancellationToken cancellationToken);
     Task SendPacketToClientAsync(string message);
     Task SendPacketToServerAsync(string message);
@@ -58,7 +74,13 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     public event AddLog OnAddInboundPacketLog;
     public delegate void UpdateCoords(Coordinate coords);
     public event UpdateCoords OnUpdateCoords;
+    public event Action<ProxyStatus>? StatusChanged;
+    public event Action<HabboPlayer>? PlayerChanged;
     #endregion
+
+    public HabboPlayer? CurrentPlayer => _playerInfo;
+
+    public CryptoDiagnostics? CryptoDiagnostics => _session?.Modifier?.GetDiagnostics();
 
     public TcpInterceptorWorker(ILogger<TcpInterceptorWorker> logger)
     {
@@ -75,6 +97,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         var listener = new TcpListener(IPAddress.Loopback, localPort);
         listener.Start();
         _logger.LogInformation("Listening on port {Port} (decrypt packets: {Decrypt})...", localPort, decryptPackets);
+        StatusChanged?.Invoke(ProxyStatus.Listening);
 
         try
         {
@@ -99,6 +122,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             listener.Stop();
             CloseSession(null);
             _logger.LogInformation("Listener stopped.");
+            StatusChanged?.Invoke(ProxyStatus.Stopped);
         }
     }
 
@@ -117,6 +141,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             {
                 server.Dispose();
                 _logger.LogError("Could not connect to remote server {Server}: {Error}", serverEndPoint, ex.Message);
+                StatusChanged?.Invoke(ProxyStatus.ConnectionFailed);
                 return;
             }
             catch
@@ -128,6 +153,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
             session = new ProxySession(client, server, _decryptPackets ? new ShockwavePacketModifier() : null);
             ReplaceSession(session);
+            StatusChanged?.Invoke(ProxyStatus.Connected);
 
             var clientToServer = RelayClientToServerAsync(session, cancellationToken);
             var serverToClient = RelayServerToClientAsync(session, cancellationToken);
@@ -150,7 +176,13 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             else
             {
                 // Closing the sockets also stops the relay that is still running.
+                var wasCurrent = ReferenceEquals(_session, session);
                 CloseSession(session);
+                // Back to waiting for the client to reconnect (the listener itself reports Stopped).
+                if (wasCurrent && !cancellationToken.IsCancellationRequested)
+                {
+                    StatusChanged?.Invoke(ProxyStatus.Listening);
+                }
             }
         }
     }
@@ -294,6 +326,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             {
                 case IncomingPacketMessage.SECRET_KEY:
                     _logger.LogInformation("Server sent its public key, traffic is encrypted from now on.");
+                    StatusChanged?.Invoke(ProxyStatus.Encrypted);
                     break;
                 case IncomingPacketMessage.RIGHTS:
                     // Log the real fuse-rights packet so its exact format/permission names can be mirrored.
@@ -302,6 +335,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                 case IncomingPacketMessage.USER_OBJ:
                     if (_playerInfo is not null) break;
                     _playerInfo = new HabboPlayer(PacketEncoding.GetString(packetBytes, 2, packetBytes.Length - 2));
+                    PlayerChanged?.Invoke(_playerInfo);
                     await SendPacketToClientAsync("BK" + "Welcome to Habbo Nice [" + _playerInfo.HabboName + "] by Samus").ConfigureAwait(false);
                     break;
                 case IncomingPacketMessage.STATUS:
@@ -381,15 +415,10 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         GC.SuppressFinalize(this);
     }
 
-    private void AddInboundPacketLog(string logEntry) => OnAddInboundPacketLog?.Invoke(
-        "---------------------------------------------------------------------" +
-        Environment.NewLine +
-        logEntry);
+    // Raw packet text; the UI formats rows itself.
+    private void AddInboundPacketLog(string logEntry) => OnAddInboundPacketLog?.Invoke(logEntry);
 
-    private void AddOutboundPacketLog(string logEntry) => OnAddOutboundPacketLog?.Invoke(
-        "---------------------------------------------------------------------" +
-        Environment.NewLine +
-        logEntry);
+    private void AddOutboundPacketLog(string logEntry) => OnAddOutboundPacketLog?.Invoke(logEntry);
 
     /// <summary>One intercepted client connection and its connection to the real server.</summary>
     private sealed class ProxySession : IDisposable

@@ -1,15 +1,18 @@
-﻿using HNice.Model;
+using HNice.Model;
 using HNice.Model.Packets;
 using HNice.Service;
-using HNice.Util.Extensions;
+using System.Windows;
 using System.Windows.Input;
 
 namespace HNice.ViewModel;
 
+/// <summary>
+/// Drops a drink machine (ACTIVEOBJECTS) on your own screen. The position follows your avatar
+/// automatically while you walk, so the machine lands at your feet.
+/// </summary>
 class DrinksViewModel : BaseViewModel
 {
-    #region Properties
-    public Dictionary<string, string> FurniName { get; set; } = new Dictionary<string, string>
+    public Dictionary<string, string> FurniName { get; } = new()
     {
         { "Habbo Cola", "md_limukaappi" },
         { "Fridge", "fridge" },
@@ -22,102 +25,68 @@ class DrinksViewModel : BaseViewModel
     public string SelectedFurni
     {
         get => _selectedFurni;
-        set
-        {
-            if (_selectedFurni != value)
-            {
-                _selectedFurni = value;
-                OnPropertyChanged(nameof(SelectedFurni));
-            }
-        }
+        set { if (_selectedFurni != value) { _selectedFurni = value; OnPropertyChanged(); } }
     }
-    private string _customFurniName = "md_limukaappi";
+
+    private string _customFurniName = string.Empty;
     public string CustomFurniName
     {
         get => _customFurniName;
-        set
-        {
-            _customFurniName = value;
-            OnPropertyChanged(nameof(CustomFurniName));
-        }
+        set { _customFurniName = value; OnPropertyChanged(); }
     }
+
     private int _xCoord = 10;
     public int XCoord
     {
         get => _xCoord;
-        set
-        {
-            if (_xCoord == value) 
-            {
-                return;
-            }
-            _xCoord = value;
-            OnPropertyChanged(nameof(XCoord));
-        }
+        set { if (_xCoord != value) { _xCoord = value; OnPropertyChanged(); } }
     }
+
     private int _yCoord = 6;
     public int YCoord
     {
         get => _yCoord;
-        set
-        {
-            if (_yCoord == value)
-            {
-                return;
-            }
-            _yCoord = value;
-            OnPropertyChanged(nameof(YCoord));
-        }
+        set { if (_yCoord != value) { _yCoord = value; OnPropertyChanged(); } }
     }
+
     private int _rotation = 2;
     public int Rotation
     {
         get => _rotation;
-        set
-        {
-            if (_rotation == value)
-            {
-                return;
-            }
-            _rotation = value;
-            OnPropertyChanged(nameof(Rotation));
-        }
+        set { if (_rotation != value) { _rotation = value; OnPropertyChanged(); } }
     }
-    private readonly ITcpInterceptorWorker _worker;
-    #endregion
 
-    #region Commands
+    private bool _isTracking;
+    /// <summary>True once your avatar's position has been read from the room.</summary>
+    public bool IsTracking
+    {
+        get => _isTracking;
+        private set { _isTracking = value; OnPropertyChanged(); }
+    }
+
     public ICommand DrinkMachineGeneratorCommand { get; }
     public ICommand CustomDrinkMachineGeneratorCommand { get; }
-    #endregion
 
     public DrinksViewModel(ITcpInterceptorWorker worker) : base(worker)
     {
-        DrinkMachineGeneratorCommand = new RelayCommand(async param => await OnGenerateDrinkMachine());
-        CustomDrinkMachineGeneratorCommand = new RelayCommand(async param => await OnGenerateCustomDrinkMachine());
+        DrinkMachineGeneratorCommand = new RelayCommand(async _ => await Place(SelectedFurni), _ => !string.IsNullOrEmpty(SelectedFurni));
+        CustomDrinkMachineGeneratorCommand = new RelayCommand(async _ => await Place(CustomFurniName), _ => !string.IsNullOrWhiteSpace(CustomFurniName));
         worker.OnUpdateCoords += UpdateMachineCoords;
-        SelectedFurni = FurniName.FirstOrDefault().Value;
-    }
-    ~DrinksViewModel() 
-    {
-        _worker.OnUpdateCoords -= UpdateMachineCoords;
+        _selectedFurni = FurniName.First().Value;
     }
 
-    private async Task OnGenerateDrinkMachine() 
-    {
-        await OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", 1, SelectedFurni, XCoord, YCoord, Rotation));
-    }
-    private async Task OnGenerateCustomDrinkMachine() 
-    {
-        await OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", 1, CustomFurniName, XCoord, YCoord, Rotation));
-    }
+    private Task Place(string sprite) =>
+        OnSendToClient(ClientPacketBuilder.ActiveObject("999000002", Worker.CurrentPlayer?.UserId ?? 1, sprite.Trim(), XCoord, YCoord, Rotation));
 
-    private void UpdateMachineCoords(Coordinate coords) 
+    // Raised from the network thread.
+    private void UpdateMachineCoords(Coordinate coords)
     {
-        if (coords is null || !coords.AreValidCoords())
-            return;
-
-        XCoord = coords.X.Value;
-        YCoord = coords.Y.Value;
+        if (coords is null || !coords.AreValidCoords()) return;
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            XCoord = coords.X!.Value;
+            YCoord = coords.Y!.Value;
+            IsTracking = true;
+        });
     }
 }

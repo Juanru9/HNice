@@ -1,0 +1,41 @@
+<UserControl x:Class="HNice.View.Tools.ImitateToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <Button Content="Start from my avatar" HorizontalAlignment="Left" Margin="0,0,0,20"
+                Command="{Binding UseMyAvatarCommand}" ToolTip="Available once you are logged in" />
+
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
+            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Name" />
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Figure" Margin="0,12,0,5" />
+            <TextBox Style="{StaticResource MonoInput}" Text="{Binding Figure, UpdateSourceTrigger=PropertyChanged}"
+                     TextWrapping="Wrap" AutomationProperties.Name="Figure" />
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Motto" Margin="0,12,0,5" />
+            <TextBox Text="{Binding Mission}" AutomationProperties.Name="Motto" />
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}" Orientation="Horizontal">
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Gender" />
+                <Border Style="{StaticResource SegmentGroup}">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource Segment}" GroupName="imitateSex" Content="Male"
+                                     IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=M}" />
+                        <RadioButton Style="{StaticResource Segment}" GroupName="imitateSex" Content="Female"
+                                     IsChecked="{Binding Sex, Converter={StaticResource Equals}, ConverterParameter=F}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            <StackPanel Margin="24,0,0,0">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="User id" />
+                <TextBox Style="{StaticResource NumberInput}" Width="100" Text="{Binding UserId}" AutomationProperties.Name="User id" />
+            </StackPanel>
+        </StackPanel>
+
+        <Button Style="{StaticResource AccentButton}" Content="Apply look" HorizontalAlignment="Left" MinWidth="160"
+                Command="{Binding ImitateCommand}" IsDefault="True" />
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Changes how you see yourself. Other players keep seeing your real avatar." />
+    </StackPanel>
+</UserControl>

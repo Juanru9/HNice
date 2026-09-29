@@ -1,108 +1,428 @@
 ﻿<Window x:Class="HNice.View.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:HNice.View"
-        xmlns:controls="clr-namespace:HNice.Controls"
-        xmlns:viewModel="clr-namespace:HNice.ViewModel"
-        mc:Ignorable="d"
-        Title="HNice - Scripting Origins" Height="700" Width="800">
+        xmlns:vm="clr-namespace:HNice.ViewModel"
+        xmlns:svc="clr-namespace:HNice.Service"
+        xmlns:tools="clr-namespace:HNice.View.Tools"
+        xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
+        Title="HNice" Height="820" Width="1320" MinWidth="1120" MinHeight="620"
+        WindowStartupLocation="CenterScreen" Style="{StaticResource {x:Type Window}}">
 
-    <DockPanel Background="Gray">
-        <Menu DockPanel.Dock="Top">
-            <MenuItem Header="_Fun section">
-                <MenuItem Header="_Get credits" Click="getCredits_Click" />
-                <Separator />
-                <MenuItem Header="_Get drinks" Click="getDrinks_Click" />
-                <MenuItem Header="_Place furni" Click="furniture_Click" />
-                <MenuItem Header="_Imitate" Click="imitate_Click" />
-                <MenuItem Header="_Warp" Click="warp_Click" />
-                <MenuItem Header="_Badges" Click="badges_Click" />
-                <MenuItem Header="_Room decoration" Click="roomDecor_Click" />
-            </MenuItem>
-            <MenuItem Header="_Scripts">
-                <MenuItem Header="_MOD functions" Click="modFunctions_Click" />
-                <MenuItem Header="_Spawn user/bot" Click="spawnUser_Click" />
-            </MenuItem>
-            <MenuItem Header="_Misc">
-                <MenuItem Header="_Encoder/Decoder" Click="encoderDecoder_Click" />
-                <MenuItem Header="_Packet sender" Click="packetSender_Click" />
-            </MenuItem>
-            <MenuItem Header="_Fuse">
-                <MenuItem Header="_Custom fuse" Click="fuse_Click" />
-            </MenuItem>
-            <MenuItem Header="_Custom">
-            </MenuItem>
-            <MenuItem Header="_About" Click="about_Click"/>
-        </Menu>
+    <Window.Resources>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-        <Border Background="Gray" BorderBrush="Black" BorderThickness="2" Padding="2">
+        <!-- Each tool view-model renders with its own panel. -->
+        <DataTemplate DataType="{x:Type vm:CreditsViewModel}"><tools:CreditsToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BadgesViewModel}"><tools:BadgesToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DrinksViewModel}"><tools:DrinksToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FurnitureViewModel}"><tools:FurniToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RoomDecorViewModel}"><tools:PostersToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:WarpViewModel}"><tools:WarpToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ImitateViewModel}"><tools:ImitateToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SpawnUserViewModel}"><tools:SpawnUserToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ModFunctionsViewModel}"><tools:MessagesToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FuseViewModel}"><tools:FuseToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:EncodeDecodeViewModel}"><tools:EncoderToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AboutViewModel}"><tools:AboutToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DiagnosticsViewModel}"><tools:DiagnosticsToolView /></DataTemplate>
 
-            <Grid Background="White" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ShowGridLines="True">
+        <!-- Sidebar grouped by tool group. -->
+        <CollectionViewSource x:Key="GroupedTools" Source="{Binding Tools}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group" />
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+
+        <Style x:Key="NavItem" TargetType="ListBoxItem">
+            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+            <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="{StaticResource RadiusSm}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource GoldSoft}" />
+                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LogRow" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" Background="Transparent" Padding="{TemplateBinding Padding}"
+                                BorderBrush="{StaticResource Surface1}" BorderThickness="0,0,0,1">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface1}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface3}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Small caption above top-bar inputs. -->
+        <Style x:Key="BarCaption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource TextXs}" />
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="Margin" Value="1,0,0,4" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ================= Connection bar ================= -->
+        <Border Background="{StaticResource Surface1}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Padding="18,12,18,10">
+            <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition />
-                    <RowDefinition Height="2*"/>
-                    <RowDefinition Height="0.5*"/>
-                </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-                    <Label VerticalAlignment="Center" Grid.Column="0" Content="Game Host:"></Label>
-                    <TextBox Margin="10,0,0,0" Grid.Column="1" Grid.Row="0" Width="150" Height="20" HorizontalAlignment="Left" Text="{Binding HotelAddress}" IsEnabled="{Binding IsNotConnected}"/>
-                    <Label VerticalAlignment="Center" Grid.Column="0" Grid.Row="1" Content="Game IP:"></Label>
-                    <TextBox Margin="10,0,0,0" Grid.Column="1" Grid.Row="1" Width="150" Height="20" HorizontalAlignment="Left" Text="{Binding HotelIP}" IsEnabled="{Binding IsNotConnected}"/>
-                    <Label VerticalAlignment="Center" Grid.Column="0" Grid.Row="2" Content="Game Port:"></Label>
-                    <TextBox Margin="10,0,0,0" Grid.Column="1" Grid.Row="2" Width="150" Height="20" HorizontalAlignment="Left" Text="{Binding InfoPort}" IsEnabled="{Binding IsNotConnected}"/>
-                    <CheckBox Margin="10,0,0,0" VerticalAlignment="Center" Grid.Column="2" Grid.Row="1" IsChecked="{Binding DecryptPackets}" IsEnabled="{Binding IsNotConnected}">Decrypt packets</CheckBox>
-                    <Button Grid.Column="3" Grid.Row="0" Command="{Binding ConnectCommand}" IsEnabled="{Binding IsNotConnected}">Connect</Button>
-                    <Button Grid.Column="3" Grid.Row="2" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}">Disconnect</Button>
+                <!-- Wordmark -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,28,0">
+                    <Image Source="/Assets/HNice.ico" Width="30" Height="30" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                    <TextBlock FontSize="{StaticResource TextXl}" FontWeight="Bold" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <Run Text="H" Foreground="{StaticResource Gold}" /><Run Text="Nice" />
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Connection form -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource BarCaption}" Text="Hotel host" />
+                        <TextBox Width="190" Text="{Binding HotelAddress, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsNotConnected}" AutomationProperties.Name="Hotel host" />
+                    </StackPanel>
+
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Style="{StaticResource BarCaption}" Text="Port" />
+                        <TextBox Style="{StaticResource NumberInput}" Width="88" Text="{Binding InfoPort}"
+                                 IsEnabled="{Binding IsNotConnected}" AutomationProperties.Name="Port" />
+                    </StackPanel>
+
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Style="{StaticResource BarCaption}" Text="Server IP" />
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource SegmentGroup}" IsEnabled="{Binding IsNotConnected}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="ipMode" Content="Auto" Padding="10,5"
+                                                 IsChecked="{Binding UseAutoIp}" ToolTip="Resolve the hotel host through public DNS" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="ipMode" Content="Manual" Padding="10,5"
+                                                 IsChecked="{Binding UseManualIp}" ToolTip="Type the server IP yourself" />
+                                </StackPanel>
+                            </Border>
+                            <TextBox x:Name="IpBox" Width="140" Margin="6,0,0,0"
+                                     Text="{Binding HotelIP, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.Name="Server IP">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox" BasedOn="{StaticResource MonoInput}">
+                                        <Setter Property="IsReadOnly" Value="False" />
+                                        <Setter Property="Tag" Value="e.g. 18.185.210.35" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UseAutoIp}" Value="True">
+                                                <Setter Property="IsReadOnly" Value="True" />
+                                                <Setter Property="Tag" Value="set on connect" />
+                                                <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+                                                <Setter Property="Focusable" Value="False" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                            <Button Content="Resolve" Margin="6,0,0,0" Command="{Binding ResolveCommand}"
+                                    Visibility="{Binding UseAutoIp, Converter={StaticResource BoolToVis}}"
+                                    ToolTip="Look up the IP now, without connecting" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding IpMessage}" FontSize="{StaticResource TextXs}" Margin="1,5,0,0" MaxWidth="330"
+                                   HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" ToolTip="{Binding IpMessage}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IpMessageIsError}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <CheckBox Margin="16,21,0,0" VerticalAlignment="Top" IsChecked="{Binding DecryptPackets}"
+                              IsEnabled="{Binding IsNotConnected}" Content="Decrypt traffic"
+                              ToolTip="Swap the encryption keys so packets are readable and editable. Off = plain passthrough." />
+                </StackPanel>
+
+                <!-- Connect / disconnect -->
+                <Grid Grid.Column="2" VerticalAlignment="Top" Margin="16,17,0,0">
+                    <Button Style="{StaticResource AccentButton}" Content="Connect" MinWidth="120" Command="{Binding ConnectCommand}"
+                            Visibility="{Binding IsNotConnected, Converter={StaticResource BoolToVis}}" />
+                    <Button Style="{StaticResource DangerButton}" Content="Disconnect" MinWidth="120" Command="{Binding DisconnectCommand}"
+                            Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}" />
                 </Grid>
-
-                <Grid Grid.Row="1" Margin="0,10,0,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition Height="20" />
-                    </Grid.RowDefinitions>
-                    <controls:LogControl x:Name="inboundLog" Grid.Column="0" Grid.Row="0" Logs="{Binding PacketLogInboundForUI}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
-                    <CheckBox Margin="10,0,0,0" VerticalAlignment="Center" Grid.Column="0" Grid.Row="1" IsChecked="{Binding PauseInboundPackets}">Pause</CheckBox>
-                    <controls:LogControl x:Name="outboundLog" Grid.Column="1" Grid.Row="0" Logs="{Binding PacketLogOutboundForUI}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
-                    <CheckBox Margin="10,0,0,0" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1" IsChecked="{Binding PauseOutboundPackets}">Pause</CheckBox>
-
-                </Grid>
-
-                <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-                    <TextBox Margin="0,10,0,10" HorizontalAlignment="Stretch" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding PacketsToSend}"/>
-                    <Button Margin="5,0,10,5" Grid.Column="0" Grid.Row="1" Command="{Binding SendToClientCommand}" IsEnabled="{Binding IsConnected}">Send to client</Button>
-                    <Button Margin="10,0,5,5" Grid.Column="1" Grid.Row="1" Command="{Binding SendToServerCommand}" IsEnabled="{Binding IsConnected}">Send to server</Button>
-                </Grid>
-
             </Grid>
         </Border>
-    </DockPanel>
+
+        <!-- ================= Workspace ================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="400" MinWidth="340" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <Border Background="{StaticResource Surface1}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <ListBox x:Name="ToolList" ItemsSource="{Binding Source={StaticResource GroupedTools}}"
+                         SelectedItem="{Binding SelectedTool}" ItemContainerStyle="{StaticResource NavItem}"
+                         Padding="10,12" AutomationProperties.Name="Tools">
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Name}" Margin="10,12,0,6" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ToolItem}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="15" Width="22"
+                                           VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                                <TextBlock Text="{Binding Title}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+
+            <!-- Tool panel -->
+            <DockPanel Grid.Column="1" Background="{StaticResource Surface0}">
+                <StackPanel DockPanel.Dock="Top" Margin="24,22,24,18" DataContext="{Binding SelectedTool}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Title}" FontSize="{StaticResource TextLg}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Border Margin="10,0,0,0" Padding="8,2" CornerRadius="10" VerticalAlignment="Center"
+                                Background="{StaticResource Surface2}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                Visibility="{Binding IsClientSideOnly, Converter={StaticResource BoolToVis}}"
+                                ToolTip="This tool changes what your own client shows. The server and other players are not affected.">
+                            <TextBlock Text="Only you see this" FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextMid}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="{Binding Description}" Margin="0,4,0,0" />
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,0,24,24" Focusable="False">
+                    <ContentControl Content="{Binding SelectedTool.ViewModel}" Focusable="False" IsTabStop="False" />
+                </ScrollViewer>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="2" Width="1" Background="{StaticResource BorderBrush}" HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch" ResizeBehavior="PreviousAndNext" Cursor="SizeWE" />
+
+            <!-- ================= Packet log ================= -->
+            <Grid Grid.Column="3" Background="{StaticResource Surface0}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Toolbar -->
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,12">
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="Packets" FontSize="{StaticResource TextLg}" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                        <ToggleButton Style="{StaticResource TogglePill}" Margin="16,0,0,0" IsChecked="{Binding CaptureInbound}"
+                                      ToolTip="Capture server-to-client packets">
+                            <TextBlock>
+                                <Run Text="← in " Foreground="{StaticResource Inbound}" /><Run Text="{Binding InboundCount, Mode=OneWay}" />
+                            </TextBlock>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource TogglePill}" Margin="6,0,0,0" IsChecked="{Binding CaptureOutbound}"
+                                      ToolTip="Capture client-to-server packets">
+                            <TextBlock>
+                                <Run Text="→ out " Foreground="{StaticResource Outbound}" /><Run Text="{Binding OutboundCount, Mode=OneWay}" />
+                            </TextBlock>
+                        </ToggleButton>
+
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Clear" Command="{Binding ClearLogCommand}" />
+                        <ToggleButton DockPanel.Dock="Right" Style="{StaticResource TogglePill}" Content="Follow" Margin="6,0,6,0"
+                                      IsChecked="{Binding FollowLog}" ToolTip="Keep scrolled to the newest packet" />
+                        <TextBox DockPanel.Dock="Right" Width="200" Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                                 AutomationProperties.Name="Filter packets" ToolTip="Filter by header name or content" x:Name="FilterBox"
+                                 Tag="Filter: header or text" />
+                    </DockPanel>
+                </Border>
+
+                <!-- Log list -->
+                <ListBox Grid.Row="1" x:Name="LogList" ItemsSource="{Binding EntriesView}"
+                         ItemContainerStyle="{StaticResource LogRow}" SelectionMode="Extended"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True" AutomationProperties.Name="Packet log"
+                         MouseDoubleClick="LogList_MouseDoubleClick" KeyDown="LogList_KeyDown">
+                    <ListBox.ContextMenu>
+                        <ContextMenu Background="{StaticResource Surface2}" BorderBrush="{StaticResource BorderStrongBrush}">
+                            <MenuItem Header="Copy" InputGestureText="Ctrl+C" Click="CopySelected_Click" />
+                            <MenuItem Header="Edit in composer" InputGestureText="Double-click" Click="UseInComposer_Click" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ToolTip="{Binding Escaped}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TimeText}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextXs}"
+                                           Foreground="{StaticResource TextLo}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                <TextBlock Grid.Column="1" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextSm}" VerticalAlignment="Top">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="→ out" />
+                                            <Setter Property="Foreground" Value="{StaticResource Outbound}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsInbound}" Value="True">
+                                                    <Setter Property="Text" Value="← in" />
+                                                    <Setter Property="Foreground" Value="{StaticResource Inbound}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Column="2" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextSm}"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Top" Margin="0,0,10,0">
+                                    <Run Text="{Binding Header, Mode=OneWay}" Foreground="{StaticResource TextLo}" />
+                                    <Run Text="{Binding HeaderName, Mode=OneWay}" Foreground="{StaticResource TextHi}" />
+                                </TextBlock>
+                                <TextBlock Grid.Column="3" Text="{Binding Body}" FontFamily="{StaticResource MonoFont}"
+                                           FontSize="{StaticResource TextSm}" Foreground="{StaticResource TextMid}"
+                                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="54" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Empty state -->
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360" IsHitTestVisible="False">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Entries.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock Text="No packets yet" FontSize="{StaticResource TextLg}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,8,0,0"
+                               Text="Press Connect, then log in through the Habbo launcher. Traffic shows up here as it flows: ← from the server, → from your client." />
+                </StackPanel>
+
+                <!-- Composer -->
+                <Border Grid.Row="2" Background="{StaticResource Surface1}" BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0" Padding="16,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBox x:Name="Composer" Style="{StaticResource MonoInput}" Text="{Binding ComposerText, UpdateSourceTrigger=PropertyChanged}"
+                                 TextWrapping="Wrap" MaxHeight="96" VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Packet to send" Tag="Packet to send, e.g. BKHello from HNice">
+                            <TextBox.InputBindings>
+                                <KeyBinding Gesture="Ctrl+Enter" Command="{Binding SendToServerCommand}" />
+                                <KeyBinding Gesture="Ctrl+Shift+Enter" Command="{Binding SendToClientCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Top">
+                            <Button Content="← To client" Command="{Binding SendToClientCommand}" ToolTip="Ctrl+Shift+Enter" />
+                            <Button Style="{StaticResource AccentButton}" Content="To server →" Margin="6,0,0,0"
+                                    Command="{Binding SendToServerCommand}" ToolTip="Ctrl+Enter" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource Hint}" FontSize="{StaticResource TextXs}" Margin="1,6,0,0"
+                                   Text="Header + body, no length prefix. Write control characters as [1] [2] [9] [13]. Double-click a packet to edit it here." />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ================= Status bar ================= -->
+        <Border Grid.Row="2" Background="{StaticResource Surface1}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+                Padding="18,6">
+            <DockPanel>
+                <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{StaticResource TextLo}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static svc:ProxyStatus.Listening}">
+                                    <Setter Property="Fill" Value="{StaticResource Gold}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static svc:ProxyStatus.Connected}">
+                                    <Setter Property="Fill" Value="{StaticResource Accent}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static svc:ProxyStatus.Encrypted}">
+                                    <Setter Property="Fill" Value="{StaticResource Success}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="{x:Static svc:ProxyStatus.ConnectionFailed}">
+                                    <Setter Property="Fill" Value="{StaticResource Danger}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding StatusText}" FontSize="{StaticResource TextSm}" Foreground="{StaticResource TextMid}"
+                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                <TextBlock FontSize="{StaticResource TextSm}" Foreground="{StaticResource TextLo}" Margin="6,0,0,0" VerticalAlignment="Center"
+                           Visibility="{Binding PlayerName, Converter={StaticResource HasValue}}">
+                    <Run Text="· signed in as" /> <Run Text="{Binding PlayerName, Mode=OneWay}" Foreground="{StaticResource Gold}" />
+                </TextBlock>
+                <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontSize="{StaticResource TextSm}" Foreground="{StaticResource TextLo}"
+                           VerticalAlignment="Center" Text="{Binding HotelIP, StringFormat=Server {0}}"
+                           Visibility="{Binding HotelIP, Converter={StaticResource HasValue}}" />
+            </DockPanel>
+        </Border>
+    </Grid>
 </Window>

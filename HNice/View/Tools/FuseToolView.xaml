@@ -1,0 +1,33 @@
+<UserControl x:Class="HNice.View.Tools.FuseToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <DataTemplate x:Key="PermissionRow">
+            <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,0,7">
+                <TextBlock Text="{Binding Name}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextSm}"
+                           Foreground="{StaticResource TextHi}" />
+            </CheckBox>
+        </DataTemplate>
+    </UserControl.Resources>
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Staff rights" />
+            <ItemsControl ItemsSource="{Binding StaffPermissions}" ItemTemplate="{StaticResource PermissionRow}" />
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <TextBox Style="{StaticResource MonoInput}" Width="200"
+                         Text="{Binding CustomPermission, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Custom permission" ToolTip="e.g. fuse_see_all_roomowners" />
+                <Button Content="Add" Margin="8,0,0,0" Command="{Binding AddCustomCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <Expander Header="Base rights (keep these on)" Margin="0,0,0,20">
+            <ItemsControl ItemsSource="{Binding BasePermissions}" ItemTemplate="{StaticResource PermissionRow}" />
+        </Expander>
+
+        <Button Style="{StaticResource AccentButton}" Content="Send rights" HorizontalAlignment="Left" MinWidth="160"
+                Command="{Binding SendFuseCommand}" IsDefault="True" />
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Unlocks staff buttons in your client. Re-enter a room to refresh the UI. The server still checks your real rights, so staff actions are rejected." />
+    </StackPanel>
+</UserControl>

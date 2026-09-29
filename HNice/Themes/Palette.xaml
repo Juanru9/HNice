@@ -1,0 +1,98 @@
+﻿<!--
+    HabboNight palette — a dim-room dark theme for HNice.
+    Neutrals are tinted toward Habbo navy; the accent is Habbo blue with gold as the
+    brand/status highlight. Packet direction has two distinct hues (inbound teal,
+    outbound amber) which are always paired with a ← / → arrow and a label, never colour alone.
+    sRGB hex values approximate OKLCH targets noted in comments.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ===== Surfaces (navy-tinted neutrals) ===== -->
+    <Color x:Key="Surface0Color">#12151D</Color>
+    <!-- window backdrop        oklch .16 .018 258 -->
+    <Color x:Key="Surface1Color">#191D28</Color>
+    <!-- panels                 oklch .20 .020 258 -->
+    <Color x:Key="Surface2Color">#212636</Color>
+    <!-- raised / rows          oklch .24 .022 258 -->
+    <Color x:Key="Surface3Color">#2A3145</Color>
+    <!-- hover / selected       oklch .28 .024 258 -->
+    <Color x:Key="InputColor">#161B26</Color>
+    <!-- text inputs (recessed) oklch .18 .020 258 -->
+
+    <Color x:Key="BorderColor">#313A50</Color>
+    <Color x:Key="BorderStrongColor">#43506E</Color>
+
+    <!-- ===== Text ===== -->
+    <Color x:Key="TextHiColor">#EEF1F8</Color>
+    <Color x:Key="TextMidColor">#A5AEC6</Color>
+    <Color x:Key="TextLoColor">#6C7690</Color>
+
+    <!-- ===== Brand & accent ===== -->
+    <Color x:Key="AccentColor">#4C8DFF</Color>
+    <!-- Habbo blue    oklch .66 .17 262 -->
+    <Color x:Key="AccentHoverColor">#6AA1FF</Color>
+    <Color x:Key="AccentPressColor">#3B78E0</Color>
+    <Color x:Key="OnAccentColor">#081020</Color>
+    <Color x:Key="GoldColor">#F6C453</Color>
+    <!-- Habbo gold    oklch .83 .14 88 -->
+    <Color x:Key="GoldSoftColor">#3A3113</Color>
+
+    <!-- ===== Packet direction ===== -->
+    <Color x:Key="InboundColor">#37C2B4</Color>
+    <!-- server -> client, teal -->
+    <Color x:Key="InboundSoftColor">#122E2C</Color>
+    <Color x:Key="OutboundColor">#F6A73B</Color>
+    <!-- client -> server, amber -->
+    <Color x:Key="OutboundSoftColor">#33240F</Color>
+
+    <!-- ===== Semantic ===== -->
+    <Color x:Key="SuccessColor">#42C46E</Color>
+    <Color x:Key="DangerColor">#F2574C</Color>
+    <Color x:Key="DangerHoverColor">#FF6A60</Color>
+
+    <!-- ===== Brushes ===== -->
+    <SolidColorBrush x:Key="Surface0" Color="{StaticResource Surface0Color}" />
+    <SolidColorBrush x:Key="Surface1" Color="{StaticResource Surface1Color}" />
+    <SolidColorBrush x:Key="Surface2" Color="{StaticResource Surface2Color}" />
+    <SolidColorBrush x:Key="Surface3" Color="{StaticResource Surface3Color}" />
+    <SolidColorBrush x:Key="InputBrush" Color="{StaticResource InputColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}" />
+
+    <SolidColorBrush x:Key="TextHi" Color="{StaticResource TextHiColor}" />
+    <SolidColorBrush x:Key="TextMid" Color="{StaticResource TextMidColor}" />
+    <SolidColorBrush x:Key="TextLo" Color="{StaticResource TextLoColor}" />
+
+    <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentHover" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentPress" Color="{StaticResource AccentPressColor}" />
+    <SolidColorBrush x:Key="OnAccent" Color="{StaticResource OnAccentColor}" />
+    <SolidColorBrush x:Key="Gold" Color="{StaticResource GoldColor}" />
+    <SolidColorBrush x:Key="GoldSoft" Color="{StaticResource GoldSoftColor}" />
+
+    <SolidColorBrush x:Key="Inbound" Color="{StaticResource InboundColor}" />
+    <SolidColorBrush x:Key="InboundSoft" Color="{StaticResource InboundSoftColor}" />
+    <SolidColorBrush x:Key="Outbound" Color="{StaticResource OutboundColor}" />
+    <SolidColorBrush x:Key="OutboundSoft" Color="{StaticResource OutboundSoftColor}" />
+
+    <SolidColorBrush x:Key="Success" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="Danger" Color="{StaticResource DangerColor}" />
+    <SolidColorBrush x:Key="DangerHover" Color="{StaticResource DangerHoverColor}" />
+
+    <!-- ===== Type ===== -->
+    <FontFamily x:Key="UiFont">Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, monospace</FontFamily>
+
+    <sys:Double x:Key="TextXs">11</sys:Double>
+    <sys:Double x:Key="TextSm">12.5</sys:Double>
+    <sys:Double x:Key="TextMd">13.5</sys:Double>
+    <sys:Double x:Key="TextLg">16</sys:Double>
+    <sys:Double x:Key="TextXl">21</sys:Double>
+
+    <CornerRadius x:Key="RadiusSm">5</CornerRadius>
+    <CornerRadius x:Key="RadiusMd">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLg">12</CornerRadius>
+
+</ResourceDictionary>

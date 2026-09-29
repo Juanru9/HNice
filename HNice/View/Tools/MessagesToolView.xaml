@@ -1,0 +1,26 @@
+<UserControl x:Class="HNice.View.Tools.MessagesToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Hotel alert" />
+            <TextBox Text="{Binding Broadcast, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                     TextWrapping="Wrap" MinHeight="70" VerticalContentAlignment="Top"
+                     AutomationProperties.Name="Hotel alert text" />
+            <Button Style="{StaticResource AccentButton}" Content="Show alert" HorizontalAlignment="Left"
+                    MinWidth="140" Margin="0,8,0,0" Command="{Binding SendBroadcastCommand}" />
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Moderator warning" />
+            <TextBox Text="{Binding ModWarning, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                     TextWrapping="Wrap" MinHeight="70" VerticalContentAlignment="Top"
+                     AutomationProperties.Name="Moderator warning text" />
+            <Button Content="Show warning" HorizontalAlignment="Left" MinWidth="140" Margin="0,8,0,0"
+                    Command="{Binding SendModWarningCommand}" />
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource Hint}"
+                   Text="Both pop up on your own screen only, like the old SnG pranks. Nobody else receives them." />
+    </StackPanel>
+</UserControl>

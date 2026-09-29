@@ -1,66 +1,71 @@
-﻿using HNice.Service;
+using HNice.Model;
+using HNice.Service;
+using HNice.Util;
 using HNice.ViewModel;
 using Microsoft.Extensions.Logging;
 using System.Windows;
+using System.Windows.Input;
 
 namespace HNice.View;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
-    private MainWindowViewModel _viewModel;
+    private readonly MainWindowViewModel _viewModel;
 
     public MainWindow(ITcpInterceptorWorker worker, ILogger<MainWindowViewModel> logger)
     {
         InitializeComponent();
+        DarkTitleBar.Apply(this);
+
         _viewModel = new MainWindowViewModel(worker, logger);
-        this.DataContext = _viewModel;
+        _viewModel.EntriesAppended += OnEntriesAppended;
+        DataContext = _viewModel;
     }
 
-    private void getCredits_Click(object sender, RoutedEventArgs e)
+    private void OnEntriesAppended()
     {
-        var _ = new CreditsView(_viewModel.Worker);
-        _.Show();
+        if (!_viewModel.FollowLog || LogList.Items.Count == 0) return;
+        LogList.ScrollIntoView(LogList.Items[^1]);
     }
 
-    private void getDrinks_Click(object sender, RoutedEventArgs e)
+    private void LogList_MouseDoubleClick(object sender, MouseButtonEventArgs e) => UseSelectedInComposer();
+
+    private void LogList_KeyDown(object sender, KeyEventArgs e)
     {
-        var _ = new DrinksView(_viewModel.Worker);
-        _.Show();
+        if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            CopySelected();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            UseSelectedInComposer();
+            e.Handled = true;
+        }
     }
 
-    private void furniture_Click(object sender, RoutedEventArgs e)
+    private void CopySelected_Click(object sender, RoutedEventArgs e) => CopySelected();
+
+    private void UseInComposer_Click(object sender, RoutedEventArgs e) => UseSelectedInComposer();
+
+    // Copies the escaped packets, one per line, in log order.
+    private void CopySelected()
     {
-        var _ = new FurnitureView(_viewModel.Worker);
-        _.Show();
+        var lines = LogList.SelectedItems.Cast<PacketLogEntry>()
+            .OrderBy(entry => LogList.Items.IndexOf(entry))
+            .Select(entry => entry.Escaped)
+            .ToList();
+        if (lines.Count > 0)
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, lines));
+        }
     }
 
-    private void imitate_Click(object sender, RoutedEventArgs e) => new ImitateView(_viewModel.Worker).Show();
-
-    private void warp_Click(object sender, RoutedEventArgs e) => new WarpView(_viewModel.Worker).Show();
-
-    private void modFunctions_Click(object sender, RoutedEventArgs e) => new ModFunctionsView(_viewModel.Worker).Show();
-
-    private void spawnUser_Click(object sender, RoutedEventArgs e) => new SpawnUserView(_viewModel.Worker).Show();
-
-    private void fuse_Click(object sender, RoutedEventArgs e) => new FuseView(_viewModel.Worker).Show();
-
-    private void badges_Click(object sender, RoutedEventArgs e) => new BadgesView(_viewModel.Worker).Show();
-
-    private void roomDecor_Click(object sender, RoutedEventArgs e) => new RoomDecorView(_viewModel.Worker).Show();
-
-    private void packetSender_Click(object sender, RoutedEventArgs e) => new PacketSenderView(_viewModel.Worker).Show();
-
-    private void encoderDecoder_Click(object sender, RoutedEventArgs e)
+    private void UseSelectedInComposer()
     {
-        var _ = new EncoderDecoderView();
-        _.Show();
-    }
-
-    private void about_Click(object sender, RoutedEventArgs e)
-    {
-        MessageBox.Show("This software is completely free and should not be used for purposes contrary to Sulake © policies.\nThe author is not responsible for any misuse of the tool.\n\nAuthor: github.com/Juanru9");
+        if (LogList.SelectedItem is not PacketLogEntry entry) return;
+        _viewModel.UseInComposerCommand.Execute(entry);
+        Composer.Focus();
+        Composer.CaretIndex = Composer.Text.Length;
     }
 }

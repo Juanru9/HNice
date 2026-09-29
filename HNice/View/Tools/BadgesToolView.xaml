@@ -1,0 +1,38 @@
+<UserControl x:Class="HNice.View.Tools.BadgesToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Badge code" />
+            <StackPanel Orientation="Horizontal">
+                <TextBox Style="{StaticResource MonoInput}" Width="140" CharacterCasing="Upper"
+                         Text="{Binding BadgeCode, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="Badge code" />
+                <Button Style="{StaticResource AccentButton}" Content="Add badge" Margin="8,0,0,0"
+                        Command="{Binding AddBadgeCommand}" IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Quick pick" />
+            <ItemsControl ItemsSource="{Binding PresetBadges}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Style="{StaticResource ChipButton}" Content="{Binding}"
+                                Command="{Binding DataContext.PickBadgeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <Button Content="Add every classic badge" HorizontalAlignment="Left" Command="{Binding AddAllBadgesCommand}" />
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Badges appear in your own badge list. Other players keep seeing your real badge." />
+    </StackPanel>
+</UserControl>

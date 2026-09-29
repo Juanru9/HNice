@@ -1,0 +1,22 @@
+<UserControl x:Class="HNice.View.Tools.AboutToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Image Source="/Assets/HNice.ico" Width="48" Height="48" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock FontSize="{StaticResource TextXl}" FontWeight="Bold">
+                    <Run Text="H" Foreground="{StaticResource Gold}" /><Run Text="Nice" />
+                </TextBlock>
+                <TextBlock Text="{Binding Version}" Foreground="{StaticResource TextLo}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextSm}" />
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource Hint}" Foreground="{StaticResource TextMid}" Margin="0,0,0,14"
+                   Text="A packet logger and toolbox for Habbo Origins, in the spirit of the old SnG Fun v1." />
+        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,14"
+                   Text="Free software. Do not use it against Sulake's terms or to harm other players; the author is not responsible for misuse." />
+        <TextBlock Style="{StaticResource FieldLabel}" Text="Author" />
+        <TextBlock Text="{Binding Author}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Accent}" />
+    </StackPanel>
+</UserControl>

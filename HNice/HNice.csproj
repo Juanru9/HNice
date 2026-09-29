@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Content Include="Assets\HNice.ico" />
+    <Resource Include="Assets\HNice.ico" />
   </ItemGroup>
 
   <ItemGroup>

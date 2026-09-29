@@ -1,0 +1,103 @@
+<UserControl x:Class="HNice.View.Tools.DiagnosticsToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:HNice.ViewModel">
+    <UserControl.Resources>
+        <DataTemplate x:Key="CheckRow" DataType="{x:Type vm:DiagnosticCheck}">
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- State mark: symbol + colour, never colour alone. -->
+                <Border Width="20" Height="20" CornerRadius="10" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,1,0,0"
+                        BorderThickness="1" AutomationProperties.Name="{Binding State}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Pass">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Success}" />
+                                    <Setter Property="Background" Value="{StaticResource InboundSoft}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Fail">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Danger}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Warn">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
+                                    <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Running">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="Bold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="–" />
+                                <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State}" Value="Pass">
+                                        <Setter Property="Text" Value="✓" />
+                                        <Setter Property="Foreground" Value="{StaticResource Success}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Fail">
+                                        <Setter Property="Text" Value="✕" />
+                                        <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Warn">
+                                        <Setter Property="Text" Value="!" />
+                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}" Value="Running">
+                                        <Setter Property="Text" Value="…" />
+                                        <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <StackPanel Grid.Column="1">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Value}" FontFamily="{StaticResource MonoFont}"
+                                   FontSize="{StaticResource TextSm}" Foreground="{StaticResource Gold}" Margin="8,0,0,0"
+                                   Visibility="{Binding Value, Converter={StaticResource HasValue}}" />
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Text="{Binding Detail}" Margin="0,3,0,0" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <DockPanel Margin="0,0,0,12">
+                <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Run checks" MinWidth="120"
+                        Command="{Binding RunChecksCommand}" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Network" Margin="0" VerticalAlignment="Center" />
+            </DockPanel>
+            <ItemsControl ItemsSource="{Binding NetworkChecks}" ItemTemplate="{StaticResource CheckRow}" />
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}">
+            <DockPanel Margin="0,0,0,12">
+                <TextBlock DockPanel.Dock="Right" Text="updates live" FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}"
+                           VerticalAlignment="Center" />
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Session" Margin="0" VerticalAlignment="Center" />
+            </DockPanel>
+            <ItemsControl ItemsSource="{Binding SessionChecks}" ItemTemplate="{StaticResource CheckRow}" />
+        </StackPanel>
+
+        <Button Content="Copy report" HorizontalAlignment="Left" Command="{Binding CopyReportCommand}"
+                ToolTip="Copies every check as plain text, handy for bug reports" />
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Key values are short fingerprints of the session keys, never the keys themselves. They change every login; if they show, both key exchanges completed." />
+    </StackPanel>
+</UserControl>

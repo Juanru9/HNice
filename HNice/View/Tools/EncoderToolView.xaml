@@ -1,0 +1,72 @@
+<UserControl x:Class="HNice.View.Tools.EncoderToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- A read-only result line with a copy button. -->
+        <Style x:Key="ResultValue" TargetType="TextBox" BasedOn="{StaticResource MonoInput}">
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+            <Setter Property="Width" Value="170" />
+        </Style>
+    </UserControl.Resources>
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Number" />
+            <TextBox Style="{StaticResource MonoInput}" Width="170" HorizontalAlignment="Left"
+                     Text="{Binding NumberInput, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Number to encode" />
+            <TextBlock Text="{Binding NumberError}" Foreground="{StaticResource Danger}" FontSize="{StaticResource TextSm}" Margin="0,4,0,0"
+                       Visibility="{Binding NumberError, Converter={StaticResource HasValue}}" />
+
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <TextBlock Text="B64 header" Foreground="{StaticResource TextMid}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Style="{StaticResource ResultValue}" Text="{Binding B64Header, Mode=OneWay}" Margin="0,0,0,6" />
+                <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="Copy" Margin="4,0,0,6"
+                        Command="{Binding CopyCommand}" CommandParameter="{Binding B64Header}" />
+
+                <TextBlock Grid.Row="1" Text="B64 length" Foreground="{StaticResource TextMid}" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource ResultValue}" Text="{Binding B64Length, Mode=OneWay}" Margin="0,0,0,6" />
+                <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource GhostButton}" Content="Copy" Margin="4,0,0,6"
+                        Command="{Binding CopyCommand}" CommandParameter="{Binding B64Length}" />
+
+                <TextBlock Grid.Row="2" Text="VL64" Foreground="{StaticResource TextMid}" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource ResultValue}" Text="{Binding Vl64, Mode=OneWay}" />
+                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource GhostButton}" Content="Copy" Margin="4,0,0,0"
+                        Command="{Binding CopyCommand}" CommandParameter="{Binding Vl64}" />
+            </Grid>
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Encoded text" />
+            <TextBox Style="{StaticResource MonoInput}" Width="170" HorizontalAlignment="Left"
+                     Text="{Binding EncodedInput, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Encoded text to decode" />
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <TextBlock Text="As B64" Foreground="{StaticResource TextMid}" Margin="0,0,0,8" />
+                <TextBlock Grid.Column="1" Text="{Binding B64Value}" FontFamily="{StaticResource MonoFont}" Foreground="{StaticResource Gold}" Margin="0,0,0,8" />
+                <TextBlock Grid.Row="1" Text="As VL64" Foreground="{StaticResource TextMid}" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Vl64Values}" FontFamily="{StaticResource MonoFont}"
+                           Foreground="{StaticResource Gold}" TextWrapping="Wrap" />
+            </Grid>
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource Hint}"
+                   Text="B64 encodes headers (2 chars) and lengths (3 chars). VL64 encodes integers in server packets." />
+    </StackPanel>
+</UserControl>

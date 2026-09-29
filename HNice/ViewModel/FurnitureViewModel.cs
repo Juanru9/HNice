@@ -1,85 +1,63 @@
-﻿using HNice.Model.Packets;
+using HNice.Model.Packets;
 using HNice.Service;
-using HNice.Util.Extensions;
 using System.Windows.Input;
 
 namespace HNice.ViewModel;
 
 /// <summary>
 /// Places a client-side furni: injects an ACTIVEOBJECTS packet toward the client so the item appears
-/// on the user's own screen only. Generalizes <see cref="DrinksViewModel"/> to any sprite name.
-/// Port of SnG Fun v1's "Furniture" form (send to the embedded client, not the server).
+/// on the user's own screen only. Port of SnG Fun v1's "Furniture" form.
 /// </summary>
 class FurnitureViewModel : BaseViewModel
 {
-    #region Properties
-    private string _furniId = "999000001";
-    public string FurniId
+    /// <summary>Sprites seen in live rooms; a quick starting point.</summary>
+    public IReadOnlyList<string> SuggestedSprites { get; } = new[]
     {
-        get => _furniId;
-        set { _furniId = value; OnPropertyChanged(nameof(FurniId)); }
-    }
+        "pizza", "ham", "chair_plasto*2", "sofa_silo", "lamp_armas", "deepgrove_duck", "hc_chr", "divider_silo2", "small_table_autumn",
+    };
 
-    private int _ownerId = 1;
-    public int OwnerId
-    {
-        get => _ownerId;
-        set { _ownerId = value; OnPropertyChanged(nameof(OwnerId)); }
-    }
-
-    private string _spriteName = "chair_norja";
+    private string _spriteName = "pizza";
     public string SpriteName
     {
         get => _spriteName;
-        set { _spriteName = value; OnPropertyChanged(nameof(SpriteName)); }
+        set { _spriteName = value; OnPropertyChanged(); }
     }
 
     private int _xCoord = 10;
-    public int XCoord
-    {
-        get => _xCoord;
-        set { _xCoord = value; OnPropertyChanged(nameof(XCoord)); }
-    }
+    public int XCoord { get => _xCoord; set { _xCoord = value; OnPropertyChanged(); } }
 
     private int _yCoord = 6;
-    public int YCoord
-    {
-        get => _yCoord;
-        set { _yCoord = value; OnPropertyChanged(nameof(YCoord)); }
-    }
+    public int YCoord { get => _yCoord; set { _yCoord = value; OnPropertyChanged(); } }
 
     private int _rotation = 2;
-    public int Rotation
-    {
-        get => _rotation;
-        set { _rotation = value; OnPropertyChanged(nameof(Rotation)); }
-    }
+    public int Rotation { get => _rotation; set { _rotation = value; OnPropertyChanged(); } }
 
-    // Optional trailing state (e.g. the on/off or value digit some furni carry after "HHH"); empty for plain furni.
+    #region Advanced
+    private string _furniId = "999000001";
+    public string FurniId { get => _furniId; set { _furniId = value; OnPropertyChanged(); } }
+
+    // 0 = use your own user id once known.
+    private int _ownerId;
+    public int OwnerId { get => _ownerId; set { _ownerId = value; OnPropertyChanged(); } }
+
+    // Optional trailing state (e.g. the on/off digit some furni carry); empty for plain furni.
     private string _extraData = "";
-    public string ExtraData
-    {
-        get => _extraData;
-        set { _extraData = value; OnPropertyChanged(nameof(ExtraData)); }
-    }
+    public string ExtraData { get => _extraData; set { _extraData = value; OnPropertyChanged(); } }
     #endregion
 
-    #region Commands
     public ICommand PlaceFurniCommand { get; }
-    #endregion
+    public ICommand PickSpriteCommand { get; }
 
     public FurnitureViewModel(ITcpInterceptorWorker worker) : base(worker)
     {
-        PlaceFurniCommand = new RelayCommand(async _ => await OnPlaceFurni());
+        PlaceFurniCommand = new RelayCommand(async _ => await OnPlaceFurni(), _ => !string.IsNullOrWhiteSpace(SpriteName));
+        PickSpriteCommand = new RelayCommand(p => { if (p is string s) SpriteName = s; });
     }
 
-    private async Task OnPlaceFurni()
+    private Task OnPlaceFurni()
     {
-        if (string.IsNullOrWhiteSpace(SpriteName))
-            return;
-
-        // Uses the real ACTIVEOBJECTS single-object format reverse-engineered from the live server.
-        var packet = ClientPacketBuilder.ActiveObject(FurniId, OwnerId, SpriteName, XCoord, YCoord, Rotation, state: ExtraData);
-        await OnSendToClient(packet);
+        var owner = OwnerId > 0 ? OwnerId : Worker.CurrentPlayer?.UserId ?? 1;
+        var packet = ClientPacketBuilder.ActiveObject(FurniId, owner, SpriteName.Trim(), XCoord, YCoord, Rotation, state: ExtraData);
+        return OnSendToClient(packet);
     }
 }

@@ -35,6 +35,8 @@ public sealed class ShockwavePacketModifier
 
     private bool _clientCryptoEnabled;
     private bool _serverCryptoEnabled;
+    private long _clientPacketsDecrypted;
+    private long _serverPacketsDecrypted;
 
     public ShockwavePacketModifier() : this(new BobbaCrypto(), new BobbaCrypto())
     {
@@ -51,6 +53,23 @@ public sealed class ShockwavePacketModifier
     public bool IsClientCryptoEnabled { get { lock (_sync) return _clientCryptoEnabled; } }
     public bool IsServerCryptoEnabled { get { lock (_sync) return _serverCryptoEnabled; } }
 
+    /// <summary>Key exchange state for the Diagnostics panel (fingerprints only, no key material).</summary>
+    public CryptoDiagnostics GetDiagnostics()
+    {
+        lock (_sync)
+        {
+            return new CryptoDiagnostics(
+                ClientKeyReceived: _client.HasKeys,
+                ServerKeyReceived: _server.HasKeys,
+                ClientCryptoEnabled: _clientCryptoEnabled,
+                ServerCryptoEnabled: _serverCryptoEnabled,
+                ClientLinkFingerprint: CryptoDiagnostics.Fingerprint(_client),
+                ServerLinkFingerprint: CryptoDiagnostics.Fingerprint(_server),
+                ClientPacketsDecrypted: _clientPacketsDecrypted,
+                ServerPacketsDecrypted: _serverPacketsDecrypted);
+        }
+    }
+
     /// <param name="data">Raw data read from the client.</param>
     /// <returns>Plain packets sent by the client.</returns>
     public byte[][] ClientToProxy(ReadOnlySpan<byte> data)
@@ -62,6 +81,7 @@ public sealed class ShockwavePacketModifier
 
             if (_clientCryptoEnabled)
             {
+                _clientPacketsDecrypted += packets.Length;
                 return DecryptChunks(packets, _client.C2sData!);
             }
 
@@ -164,7 +184,9 @@ public sealed class ShockwavePacketModifier
             _serverBufferPlain.Push(chunk);
         }
 
-        return _serverBufferPlain.Receive();
+        var packets = _serverBufferPlain.Receive();
+        _serverPacketsDecrypted += packets.Length;
+        return packets;
     }
 
     private void EnableClientCrypto()

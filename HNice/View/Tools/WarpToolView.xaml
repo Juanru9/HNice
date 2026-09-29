@@ -1,0 +1,68 @@
+<UserControl x:Class="HNice.View.Tools.WarpToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Square step buttons for the direction pad. -->
+        <Style x:Key="PadButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="{StaticResource TextLg}" />
+            <Setter Property="Margin" Value="3" />
+        </Style>
+    </UserControl.Resources>
+    <StackPanel>
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Target tile" />
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="X" Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding XCoord, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="X" />
+                <TextBlock Text="Y" Foreground="{StaticResource TextLo}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding YCoord, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Y" />
+                <Button Style="{StaticResource AccentButton}" Content="Warp" Margin="12,0,0,0" MinWidth="90"
+                        Command="{Binding WarpCommand}" IsDefault="True" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Step one tile" />
+            <Grid HorizontalAlignment="Left">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Button Grid.Column="1" Style="{StaticResource PadButton}" Content="▲" ToolTip="Y − 1"
+                        Command="{Binding NudgeCommand}" CommandParameter="N" AutomationProperties.Name="Step north" />
+                <Button Grid.Row="1" Style="{StaticResource PadButton}" Content="◀" ToolTip="X − 1"
+                        Command="{Binding NudgeCommand}" CommandParameter="W" AutomationProperties.Name="Step west" />
+                <Border Grid.Row="1" Grid.Column="1" Width="44" Height="44" Margin="3" CornerRadius="{StaticResource RadiusSm}"
+                        Background="{StaticResource GoldSoft}" BorderBrush="{StaticResource Gold}" BorderThickness="1">
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}"
+                               FontSize="{StaticResource TextXs}" Foreground="{StaticResource Gold}">
+                        <Run Text="{Binding XCoord, Mode=OneWay}" /><Run Text="," /><Run Text="{Binding YCoord, Mode=OneWay}" />
+                    </TextBlock>
+                </Border>
+                <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource PadButton}" Content="▶" ToolTip="X + 1"
+                        Command="{Binding NudgeCommand}" CommandParameter="E" AutomationProperties.Name="Step east" />
+                <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource PadButton}" Content="▼" ToolTip="Y + 1"
+                        Command="{Binding NudgeCommand}" CommandParameter="S" AutomationProperties.Name="Step south" />
+            </Grid>
+        </StackPanel>
+
+        <Expander Header="Advanced">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Room slot" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <TextBox Style="{StaticResource NumberInput}" Text="{Binding RoomIndex}" AutomationProperties.Name="Room slot" />
+            </StackPanel>
+        </Expander>
+
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Moves your avatar on your screen only. The server keeps your real position; your next step snaps you back." />
+    </StackPanel>
+</UserControl>
