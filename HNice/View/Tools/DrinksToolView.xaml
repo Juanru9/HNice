@@ -2,6 +2,52 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel>
+        <TextBlock Style="{StaticResource SectionHeader}" Text="REAL DRINK" />
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Drink" />
+            <ListBox ItemsSource="{Binding Drinks}" SelectedValuePath="Value"
+                     SelectedValue="{Binding SelectedDrink, Mode=TwoWay}"
+                     ItemContainerStyle="{StaticResource OptionRow}" MaxHeight="220"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Drink">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Value}" FontFamily="{StaticResource MonoFont}"
+                                       FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Key}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <CheckBox Content="Keep it in my hand" IsChecked="{Binding KeepDrink}" Margin="0,12,0,12"
+                      ToolTip="The server takes drinks away after about 5 minutes. Orders the same drink again every 4½ minutes until you untick this." />
+
+            <Button Style="{StaticResource AccentButton}" Content="Get drink" HorizontalAlignment="Left" MinWidth="160"
+                    Command="{Binding OrderDrinkCommand}" />
+
+            <TextBlock Text="{Binding OrderStatus}" TextWrapping="Wrap" Margin="0,10,0,0" FontSize="{StaticResource TextSm}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{StaticResource TextMid}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding OrderState}" Value="Accepted">
+                                <Setter Property="Foreground" Value="{StaticResource Success}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding OrderState}" Value="Failed">
+                                <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <TextBlock Style="{StaticResource Disclosure}"
+                       Text="Asks the server for the drink where you stand. Accepted means the server itself put it in your hand, so everyone in the room sees it. Public rooms accept it; the guest rooms tried ignored it." />
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="MACHINE ON YOUR SCREEN" />
         <StackPanel Style="{StaticResource Section}">
             <TextBlock Style="{StaticResource FieldLabel}" Text="Machine" />
             <ListBox ItemsSource="{Binding FurniName}" SelectedValuePath="Value"

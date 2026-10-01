@@ -74,7 +74,7 @@ public static class ClientPacketBuilder
 
     /// <summary>
     /// ACTIVEOBJECTS (@`): one floor furni. Format reverse-engineered from the live server:
-    /// header + VL64(count) + [ id [2] ownerId(VL64)+sprite [2] location [2] colors [2] (empty) [2] "HHH"+state ].
+    /// header + VL64(count) + [ id [2] ownerId(VL64)+sprite [2] location [2] colors [2] (empty) [2] "HHH"+state [2] tail ].
     /// Location is x(VL64) y(VL64) width(VL64) length(VL64) dir(VL64) "0.0". Purely a local visual; the server has no such object.
     /// </summary>
     public static string ActiveObject(string id, int ownerId, string sprite, int x, int y, int direction, string colors = "", string state = "", int width = 1, int length = 1)
@@ -86,8 +86,23 @@ public static class ClientPacketBuilder
             location + FieldSeparator +
             colors + FieldSeparator +
             string.Empty + FieldSeparator +
-            "HHH" + state;
+            "HHH" + state + FieldSeparator +
+            ActiveObjectTail;
     }
+
+    /// <summary>
+    /// Every live furni entry ends with "HMM" after its state: VL64 0, -1, -1. Without it the client reads the
+    /// expiry as 0 and labels the furni "Expira en 0 minutos"; -1 is how the server says it never expires.
+    /// </summary>
+    private static readonly string ActiveObjectTail = 0.EncodeVL64() + (-1).EncodeVL64() + (-1).EncodeVL64();
+
+    /// <summary>
+    /// ROOMFORWARD (D^, 286): tells your client to go to a room. Captured from the server on login (01:16:34):
+    /// D^ I RM H = isPublic(VL64 bool) roomId(VL64) then 0; the client then entered public room 54 through its normal
+    /// requests (266, then the room directory request), so the server checks the entry like any other.
+    /// </summary>
+    public static string RoomForward(bool isPublic, int roomId) =>
+        286.EncodeB64() + (isPublic ? 1 : 0).EncodeVL64() + roomId.EncodeVL64() + 0.EncodeVL64();
 
     /// <summary>AVAILABLE_BADGES: shows a badge in the client's badge list. Local only.</summary>
     public static string Badge(string code) => Header(IncomingPacketMessage.AVAILABLE_BADGES) + "QA" + code;

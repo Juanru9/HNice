@@ -251,10 +251,12 @@ namespace HNice.ViewModel
         {
             Tools.Add(new ToolItem("Credits", "Hotel", "", "Show any balance in your purse.", true, new CreditsViewModel(Worker)));
             Tools.Add(new ToolItem("Badges", "Hotel", "", "Add badges to your badge list.", true, new BadgesViewModel(Worker)));
-            Tools.Add(new ToolItem("Drinks", "Room", "", "Drop a drink machine at your feet.", true, new DrinksViewModel(Worker)));
+            Tools.Add(new ToolItem("Drinks", "Room", "", "Get a real drink from the server, or drop a drink machine at your feet.", true, new DrinksViewModel(Worker)));
             Tools.Add(new ToolItem("Furni", "Room", "", "Browse the game's furni catalogue and place any item next to you.", true, new FurnitureViewModel(Worker)));
             Tools.Add(new ToolItem("Posters", "Room", "", "Hang a poster on a wall.", true, new RoomDecorViewModel(Worker)));
             Tools.Add(new ToolItem("Warp", "Room", "", "Move your avatar to any tile.", true, new WarpViewModel(Worker)));
+            Tools.Add(new ToolItem("Rejoin", "Room", "", "Go straight back into a room when you get kicked from it.", false, new RejoinViewModel(Worker)));
+            Tools.Add(new ToolItem("Wobble", "Room", "", "Follow Wobble Squabble rounds and play yours automatically.", true, new WobbleViewModel(Worker)));
             Tools.Add(new ToolItem("Imitate", "People", "", "Change how your own avatar looks.", true, new ImitateViewModel(Worker)));
             Tools.Add(new ToolItem("Mime", "People", "", "Copy another Habbo's walking, gestures and chat. Everyone sees it.", false, new MimicViewModel(Worker)));
             Tools.Add(new ToolItem("Spawn user", "People", "", "Add a fake user or bot to the room.", true, new SpawnUserViewModel(Worker)));

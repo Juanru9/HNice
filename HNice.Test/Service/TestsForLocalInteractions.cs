@@ -23,6 +23,76 @@ public class TestsForLocalInteractions
         RoomStatus.Build(entries).Should().Be("@b" + captured);
     }
 
+    // Your client's room directory request, then the server's ROOM_READY (both captured).
+    private static LocalInteractions InRoom(string directory, string roomReady, bool autoRejoin = true)
+    {
+        var local = new LocalInteractions { AutoRejoin = autoRejoin };
+        local.HandleOutbound(P(directory));
+        local.RewriteInbound(P(roomReady));
+        return local;
+    }
+
+    [Theory]
+    [InlineData("@BH`nGDH", "AEmodel_b 67512", "D^H`nGDH", 67512)]  // guest room
+    [InlineData("@BIQHH", "AEnewbie_lobby 33", "D^IQHH", 33)]        // public room
+    [InlineData("@BISPH", "AEtheater 67", "D^ISPH", 67)]             // public room
+    public void ShouldSendYouBackToTheRoomWhenKicked(string directory, string roomReady, string forward, int roomId)
+    {
+        var local = InRoom(directory, roomReady);
+        var rejoined = new List<int>();
+        local.Rejoining += rejoined.Add;
+
+        // Captured kick in room 67708: walked to the door, then LOGOUT and HOTEL_VIEW.
+        var inject = new List<(string Packet, TimeSpan Delay)>();
+        local.RewriteInbound(P("@]1"), inject);
+        local.RewriteInbound(P("@R"), inject);
+
+        inject.Should().ContainSingle().Which.Packet.Should().Be(forward); // ROOMFORWARD
+        rejoined.Should().Equal(roomId);
+    }
+
+    [Theory]
+    [InlineData("@u")]        // QUIT: hotel view button
+    [InlineData("@BIQHH")]    // room directory: going to another room
+    public void ShouldNotSendYouBackWhenYouLeaveOnYourOwn(string leave)
+    {
+        var local = InRoom("@BH`nGDH", "AEmodel_b 67512");
+        local.HandleOutbound(P(leave));
+
+        var inject = new List<(string Packet, TimeSpan Delay)>();
+        local.RewriteInbound(P("@R"), inject);
+
+        inject.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ShouldNotSendYouBackWhenOff()
+    {
+        var local = InRoom("@BH`nGDH", "AEmodel_b 67512", autoRejoin: false);
+        var inject = new List<(string Packet, TimeSpan Delay)>();
+        local.RewriteInbound(P("@R"), inject);
+        inject.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ShouldReportADrinkTheServerPutInYourHand()
+    {
+        var local = new LocalInteractions();
+        var given = new List<string>();
+        local.ServerGaveDrink += given.Add;
+
+        // Learn which avatar is ours (slot 2), then replay the server's answer to CARRYDRINK 19 in a public room.
+        local.HandleOutbound(P("AO4 7"));
+        local.RewriteInbound(P("@bIJSAQB0.0[2]PAPA/[2]"));
+        local.RewriteInbound(P("@bIJSAQB0.0[2]PAPA/drink 19/[2]"));
+        local.RewriteInbound(P("@bIJSAQB0.0[2]PAPA/carryd 19/[2]"));
+
+        // Someone else's drink is not ours.
+        local.RewriteInbound(P("@bJHPBJ0.0[2]PAPA/carryd 5/[2]JSAQB0.0[2]PAPA/[2]"));
+
+        given.Should().Equal("19", "19");
+    }
+
     [Fact]
     public void ShouldAnswerAFakeDrinkMachineLocally()
     {

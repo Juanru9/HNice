@@ -33,10 +33,15 @@ public sealed record MimicAction(string Packet, TimeSpan Delay, string Activity,
 /// Copies another Habbo: walks where they walk, waves and dances when they do, and repeats what they say.
 /// Everything is sent through your own connection as the client would send it, so everyone in the room sees it.
 ///
-/// Watched (live captures):  ← STATUS (@b)  their tile, next step "mv x,y,z", rotation, "/wave/", "/dance/"
+/// Watched (live captures):  ← STATUS (@b)  their tile, next step "mv x,y,z", rotation, "/wave/", "/dance/", "/sign 10/"
 ///                           ← CHAT (@X) and ← CHAT_3 (@Z, shout): index(VL64) text[2]
-///                           ← LOGOUT (@]) and ← ROOM_READY: they left, stop
+///                           "/carryd 19/" and "/drink 19/" (the hand item they hold)
+///                           ← LOGOUT (@]): they left; ← USERS (@\) with their user id within a minute: they are back
+///                             under a new slot (captured in the pool 01:06:39: LOGOUT @]1, then Alito as slot 5)
+///                           ← ROOM_READY: you changed rooms, stop
 /// Sent (captured from the client):  1269 "Su" x y (walk), LOOKTO "AO" "x y", WAVE "A^", DANCE "A]", STOP "AXDance",
+///                           SIGN "Ah" + the number as text (vote signs, captured in the pool: "Ah10" → "/sign 10/"),
+///                           CARRYDRINK "AP" + id (accepted in public rooms), STOP "AXCarryItem" (puts it away),
 ///                           CHAT "@t" and SHOUT "@w" + B64 length + text.
 /// </summary>
 public sealed class Mimic
@@ -45,6 +50,10 @@ public sealed class Mimic
     private const int ChatHeader = (int)IncomingPacketMessage.CHAT;
     private const int ShoutHeader = (int)IncomingPacketMessage.CHAT_3;
     private const int LogoutHeader = (int)IncomingPacketMessage.LOGOUT;
+    private const int UsersHeader = (int)IncomingPacketMessage.USERS;
+
+    // Someone who leaves through the pool's booths or tower comes straight back under a new slot.
+    private static readonly TimeSpan ReturnWindow = TimeSpan.FromSeconds(60);
     private const int RoomReadyHeader = (int)IncomingPacketMessage.ROOM_READY;
     private const int WalkHeader = 1269;
 
@@ -63,16 +72,22 @@ public sealed class Mimic
     private RoomUser? _target;
     private (int X, int Y) _offset;
     private (int X, int Y)? _lastWalk;
-    private int? _lastRotation;
 
-    // The server ignores a walk to a tile furni stands on, so a walk that does not move you within
-    // BlockedAfter marks that tile blocked (for this room) and the nearest free tile is tried instead.
-    private static readonly TimeSpan BlockedAfter = TimeSpan.FromMilliseconds(1200);
+    // How they stand (body, head) while not walking; copied once you are on your tile. Sent once per pose.
+    private (int Body, int Head)? _wantedPose;
+    private (int Body, int Head)? _turnSentFor;
+
+    // The server ignores a walk to a tile furni stands on, so a walk that leaves you standing short of it for
+    // BlockedAfter (since it was sent, or since your last step) marks that tile blocked (for this room) and the
+    // nearest free tile is tried instead. Captured: the server takes 0.3-1.5 s to start moving you.
+    private static readonly TimeSpan BlockedAfter = TimeSpan.FromMilliseconds(2500);
     private readonly HashSet<(int X, int Y)> _blocked = new();
     private (int X, int Y)? _desired;      // their tile + offset
     private (int X, int Y) _theirTile;
-    private (int X, int Y)? _walkFrom;     // where you stood when the last walk was sent
+    private (int X, int Y)? _walkFrom;     // where you stood when the last walk was sent; null = not waiting on it
     private DateTime _walkSentAt;
+    private (int X, int Y)? _lastHere;     // your tile at the last tick, to see when you last took a step
+    private DateTime _lastMovedAt;
 
     // The server also ignores a walk when there is no path (captured: furni walls you in), so tiles that
     // fail in a row are "unreachable from here", not blocked: after MaxFailStreak the mime stops trying
@@ -84,6 +99,9 @@ public sealed class Mimic
     public Func<int, int, bool> IsFree { get; set; } = (_, _) => true;
     private bool _wasWaving;
     private bool _wasDancing;
+    private int? _lastSign;
+    private int? _lastCarry;
+    private DateTime? _awayUntil;   // they left the room: waiting this long for them to come back
     private int _waveGeneration;
     private DateTime _nextSpeechAt = DateTime.MinValue;
 
@@ -132,13 +150,17 @@ public sealed class Mimic
             _target = target;
             _offset = position == MimicPosition.Beside || me is null ? (1, 0) : (me.X - target.X, me.Y - target.Y);
             _lastWalk = null;
-            _lastRotation = null;
+            _wantedPose = null;
+            _turnSentFor = null;
             _blocked.Clear();
             _failStreak.Clear();
             _desired = null;
             _walkFrom = null;
             _wasWaving = false;
             _wasDancing = false;
+            _lastSign = null;
+            _lastCarry = null;
+            _awayUntil = null;
 
             if ((Parts & MimicParts.Moves) != 0 && me is not null)
             {
@@ -192,6 +214,7 @@ public sealed class Mimic
 
         string? stoppedBecause = null;
         string? skipped = null;
+        string? notice = null;
         lock (_sync)
         {
             if (_target is not { } target) return actions;
@@ -200,7 +223,25 @@ public sealed class Mimic
             var body = packet[2..];
             var id = header.DecodeB64();
 
-            if (header == StatusHeader && RoomStatus.TryParse(body, out var entries))
+            if (id == UsersHeader && target.UserId > 0 && RoomUsers.TryParse(body, out var users)
+                && users.FirstOrDefault(u => u.UserId == target.UserId) is { } back)
+            {
+                // Same person, possibly a new slot: keep copying them.
+                if (_awayUntil is not null || back.Index != target.Index)
+                {
+                    notice = $"{back.DisplayName} is back (slot {back.Index}): copying again.";
+                }
+                _target = back;
+                _awayUntil = null;
+                _theirTile = (back.X, back.Y);
+                _lastWalk = null;
+                _walkFrom = null;
+            }
+            else if (_awayUntil is not null)
+            {
+                // Their old slot may be given to someone else: copy nothing until they are back.
+            }
+            else if (header == StatusHeader && RoomStatus.TryParse(body, out var entries))
             {
                 foreach (var entry in entries.Where(e => e.Index == target.Index))
                 {
@@ -213,16 +254,15 @@ public sealed class Mimic
             }
             else if (id == LogoutHeader && int.TryParse(body.Trim(), out var leftIndex) && leftIndex == target.Index)
             {
-                stoppedBecause = $"{target.DisplayName} left the room.";
-            }
-            else if (id == RoomReadyHeader)
-            {
-                stoppedBecause = "You changed rooms.";
+                _awayUntil = now + ReturnWindow;
+                notice = $"{target.DisplayName} left: copying again if they come back within a minute.";
             }
 
+            if (id == RoomReadyHeader) stoppedBecause = "You changed rooms.";
             if (stoppedBecause is not null) _target = null;
         }
 
+        if (notice is not null) Notice?.Invoke(notice);
         if (stoppedBecause is not null) Stopped?.Invoke(stoppedBecause);
         if (skipped is not null) Skipped?.Invoke(skipped);
         return actions;
@@ -245,17 +285,29 @@ public sealed class Mimic
             {
                 WalkTo(destination, me, now, actions);
             }
-            else if (step is null && entry.BodyRotation != _lastRotation && me is not null && (me.X, me.Y) == _lastWalk)
+
+            // Standing still: copy how they face, now or as soon as you are on your tile (see Tick).
+            var pose = (entry.BodyRotation, entry.HeadRotation);
+            if (step is not null)
             {
-                // Standing still and turning: face the same way.
-                var (dx, dy) = Direction(entry.BodyRotation);
-                actions.Add(new MimicAction(LookTo(me.X + dx, me.Y + dy), TimeSpan.Zero, $"Turn to {entry.BodyRotation}"));
+                _wantedPose = null;
             }
-            if (step is null) _lastRotation = entry.BodyRotation;
+            else if (pose != _wantedPose)
+            {
+                _wantedPose = pose;
+                _turnSentFor = null;
+            }
+            TurnIfThere(me, actions);
         }
 
         var waving = parts.Contains("wave");
         var dancing = parts.Any(p => p == "dance" || p.StartsWith("dance ", StringComparison.Ordinal));
+        // Only a plain number is copied, so nothing but a sign can end up in the request.
+        int? sign = parts.FirstOrDefault(p => p.StartsWith("sign ", StringComparison.Ordinal)) is { } signPart
+                    && int.TryParse(signPart[5..], out var n) && n >= 0 ? n : null;
+        // "carryd 19" while held, "drink 19" while sipping: the same item.
+        int? carry = parts.FirstOrDefault(p => p.StartsWith("carryd ", StringComparison.Ordinal) || p.StartsWith("drink ", StringComparison.Ordinal))
+                         is { } carryPart && int.TryParse(carryPart[(carryPart.IndexOf(' ') + 1)..], out var c) && c > 0 ? c : null;
         if ((Parts & MimicParts.Gestures) != 0)
         {
             if (waving && !_wasWaving)
@@ -270,9 +322,25 @@ public sealed class Mimic
             if (dancing && !_wasDancing) actions.Add(new MimicAction("A]", TimeSpan.Zero, "Dance"));
             // Captured: stopping sends STOP "Dance". Walking also stops it, but copy the stop either way.
             if (!dancing && _wasDancing) actions.Add(new MimicAction(StopDancing, TimeSpan.Zero, "Stop dancing"));
+            // A vote sign: held up again whenever theirs appears or changes number.
+            if (sign is { } number && number != _lastSign)
+            {
+                actions.Add(new MimicAction(SignHeader + number, TimeSpan.Zero, $"Hold up sign {number}"));
+            }
+            // Their hand item: ask for the same one when it changes, put yours away when they put theirs away.
+            if (carry is { } item && item != _lastCarry)
+            {
+                actions.Add(new MimicAction(ServerPacketBuilder.CarryDrink(item), TimeSpan.Zero, $"Carry {item} (public rooms only)"));
+            }
+            else if (carry is null && _lastCarry is not null)
+            {
+                actions.Add(new MimicAction(StopCarrying, TimeSpan.Zero, "Put the hand item away"));
+            }
         }
         _wasWaving = waving;
         _wasDancing = dancing;
+        _lastSign = sign;
+        _lastCarry = carry;
     }
 
     /// <returns>The line when it was skipped as risky, otherwise null.</returns>
@@ -310,27 +378,53 @@ public sealed class Mimic
         || (!string.IsNullOrWhiteSpace(MyName) && text.Contains(MyName, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Called every half second while copying: a walk that did not move you means furni blocks that tile,
-    /// so the nearest free tile next to them is tried instead.
+    /// Called every half second while copying: a walk that leaves you standing short of its tile means furni
+    /// blocks that tile, so the nearest free tile next to them is tried instead.
     /// </summary>
     public List<MimicAction> Tick(StatusEntry? me, DateTime now)
     {
         var actions = new List<MimicAction>();
         string? notice = null;
+        string? stoppedBecause = null;
         lock (_sync)
         {
-            if (_target is null || (Parts & MimicParts.Moves) == 0 || me is null) return actions;
-            if (_lastWalk is not { } walk || _walkFrom is not { } from) return actions;
+            if (_target is { } away && _awayUntil is { } until)
+            {
+                if (now > until)
+                {
+                    stoppedBecause = $"{away.DisplayName} left the room.";
+                    _target = null;
+                }
+            }
+        }
+        if (stoppedBecause is not null)
+        {
+            Stopped?.Invoke(stoppedBecause);
+            return actions;
+        }
+
+        lock (_sync)
+        {
+            if (_target is null || _awayUntil is not null || (Parts & MimicParts.Moves) == 0 || me is null) return actions;
+            // They stopped and turned before you arrived (you trail them by about a tile): turn now.
+            TurnIfThere(me, actions);
+            if (_lastWalk is not { } walk || _walkFrom is null) return actions;
 
             var here = (me.X, me.Y);
-            if (here == walk || here != from)
+            if (here != _lastHere)
             {
-                // Arrived, or on the way: the path works.
-                if (here == walk) _walkFrom = null;
+                _lastHere = here;
+                _lastMovedAt = now;
+            }
+            if (here == walk)
+            {
+                _walkFrom = null;
                 _failStreak.Clear();
                 return actions;
             }
-            if (now - _walkSentAt < BlockedAfter) return actions;
+            // Not started yet, or still stepping. Captured 00:46:59: stopped one tile short of 3,7 and stayed there,
+            // which the old "never left the start tile" check took for "on the way".
+            if (now - Max(_walkSentAt, _lastMovedAt) < BlockedAfter) return actions;
 
             _blocked.Add(walk);
             _failStreak.Add(walk);
@@ -354,36 +448,76 @@ public sealed class Mimic
         return actions;
     }
 
+    /// <summary>
+    /// Turns you like them once you stand on your tile. Captured on Origins (00:55-00:56): LOOKTO turns your head to
+    /// the tile, and your body only when it is 2 or more steps away from that direction (body 2, look 3 = head 3,
+    /// body 2; body 2, look 4 = both 4). So a body one step off is first swung 2 past their facing, then back.
+    /// </summary>
+    private void TurnIfThere(StatusEntry? me, List<MimicAction> actions)
+    {
+        if (_wantedPose is not { } wanted || wanted == _turnSentFor || me is null || (me.X, me.Y) != _lastWalk) return;
+        _turnSentFor = wanted;
+        if ((me.BodyRotation, me.HeadRotation) == wanted) return;
+
+        var body = me.BodyRotation;
+        if (body != wanted.Body)
+        {
+            if (Steps(body, wanted.Body) == 1)
+            {
+                var clockwise = (wanted.Body - body + 8) % 8 == 1;
+                var swing = (wanted.Body + (clockwise ? 2 : 6)) % 8;
+                actions.Add(Look(me, swing, $"Turn to {swing} (to swing the body)"));
+            }
+            actions.Add(Look(me, wanted.Body, $"Turn to {wanted.Body}"));
+        }
+        // Their head one step off their body: only your head turns, as theirs did.
+        if (wanted.Head != wanted.Body) actions.Add(Look(me, wanted.Head, $"Look to {wanted.Head}"));
+    }
+
+    private static int Steps(int a, int b) => Math.Min((a - b + 8) % 8, (b - a + 8) % 8);
+
+    private static MimicAction Look(StatusEntry me, int rotation, string activity)
+    {
+        var (dx, dy) = Direction(rotation);
+        return new MimicAction(LookTo(me.X + dx, me.Y + dy), TimeSpan.Zero, activity);
+    }
+
     private void WalkTo((int X, int Y) tile, StatusEntry? me, DateTime now, List<MimicAction> actions, string? activity = null)
     {
         _lastWalk = tile;
         _walkFrom = me is null ? null : (me.X, me.Y);
         _walkSentAt = now;
+        _lastHere = _walkFrom;
+        _lastMovedAt = now;
         actions.Add(new MimicAction(Walk(tile.X, tile.Y), TimeSpan.Zero, activity ?? $"Walk to {tile.X},{tile.Y}"));
     }
+
+    // Captured 00:51:38: keeping a distance of 11 tiles put the wanted tile at x = -2, off the map, and with only
+    // 2 tiles searched around it the mime stood still for 15 s. Searching further finds the room's edge instead.
+    private const int MaxSearchRadius = 6;
 
     /// <summary>The wanted tile, or the nearest free one around it that is not blocked and not their own tile.</summary>
     private (int X, int Y)? PickDestination()
     {
         if (_desired is not { } desired) return null;
-        var candidates = new List<(int X, int Y)>();
-        for (var radius = 0; radius <= 2; radius++)
+        for (var radius = 0; radius <= MaxSearchRadius; radius++)
         {
+            var ring = new List<(int X, int Y)>();
             for (var dx = -radius; dx <= radius; dx++)
             {
                 for (var dy = -radius; dy <= radius; dy++)
                 {
-                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius) continue;
-                    candidates.Add((desired.X + dx, desired.Y + dy));
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) == radius) ring.Add((desired.X + dx, desired.Y + dy));
                 }
             }
+            var best = ring
+                .Where(t => t.X >= 0 && t.Y >= 0 && t != _theirTile && !_blocked.Contains(t) && IsFree(t.X, t.Y))
+                .OrderBy(t => Math.Abs(t.X - _theirTile.X) + Math.Abs(t.Y - _theirTile.Y))
+                .Cast<(int X, int Y)?>()
+                .FirstOrDefault();
+            if (best is not null) return best;
         }
-        return candidates
-            .Where(t => t.X >= 0 && t.Y >= 0 && t != _theirTile && !_blocked.Contains(t) && IsFree(t.X, t.Y))
-            .OrderBy(t => Math.Max(Math.Abs(t.X - desired.X), Math.Abs(t.Y - desired.Y)))
-            .ThenBy(t => Math.Abs(t.X - _theirTile.X) + Math.Abs(t.Y - _theirTile.Y))
-            .Cast<(int X, int Y)?>()
-            .FirstOrDefault();
+        return null;
     }
 
     // "mv x,y,z"
@@ -404,6 +538,11 @@ public sealed class Mimic
     };
 
     private static readonly string StopDancing = ((int)OutcomingPacketMessage.STOP).EncodeB64() + "Dance";
+
+    private static readonly string SignHeader = ((int)OutcomingPacketMessage.SIGN).EncodeB64();
+
+    // Captured: the client sends STOP "CarryItem" to put a hand item away (e.g. on entering a room).
+    private static readonly string StopCarrying = ((int)OutcomingPacketMessage.STOP).EncodeB64() + "CarryItem";
 
     private static string Walk(int x, int y) => WalkHeader.EncodeB64() + x.EncodeVL64() + y.EncodeVL64();
 

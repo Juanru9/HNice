@@ -42,13 +42,77 @@ public class TestsForMimic
             .Which.Packet.Should().Be("Su" + "RA" + "K");                                  // walk to 6,3 (VL64 6 = "RA")
 
         mimic.Tick(Me(7, 2), Now.AddMilliseconds(600)).Should().BeEmpty("give the server a moment");
+        mimic.Tick(Me(7, 2), Now.AddMilliseconds(1500)).Should().BeEmpty("captured: the server can take 1.5 s to start moving you");
 
-        var retry = mimic.Tick(Me(7, 2), Now.AddMilliseconds(1500));
+        var retry = mimic.Tick(Me(7, 2), Now.AddMilliseconds(2600));
         retry.Should().ContainSingle();
         retry[0].Packet.Should().NotBe("SuRAK", "6,3 is blocked now");
         retry[0].Activity.Should().Contain("blocked");
 
-        mimic.Tick(Me(6, 2), Now.AddMilliseconds(2000)).Should().BeEmpty("on the way");
+        mimic.Tick(Me(6, 2), Now.AddMilliseconds(3100)).Should().BeEmpty("on the way");
+    }
+
+    // STATUS for Mikee (index 2) standing on 5,2 with the given head and body rotation (VL64 2 = "J", 3 = "K", 4 = "PA").
+    private static string MikeeStands(string head, string body) => "@bIJQAJ0.0\u0002" + head + body + "/\u0002";
+
+    [Fact]
+    public void ShouldSwingTheBodyFirstWhenTheirDiagonalIsOneStepFromYours()
+    {
+        // Captured 00:56:33: they faced 3, you faced 2; LOOKTO toward 3 only turned your head (head 3, body 2).
+        var mimic = Started();   // you stand on 7,2 facing 2, which is already your place
+        var turns = mimic.Plan(MikeeStands("K", "K"), Me(7, 2), Now);
+
+        turns.Select(t => t.Packet).Should().Equal("AO6 3", "AO8 3");   // look toward 5 (body swings), then 3
+    }
+
+    [Fact]
+    public void ShouldCopyTheirHeadWhenItIsOneStepOffTheirBody()
+    {
+        var mimic = Started();
+        mimic.Plan(MikeeStands("K", "J"), Me(7, 2), Now)   // body 2 like yours, head 3
+            .Select(t => t.Packet).Should().Equal("AO8 3");
+    }
+
+    [Fact]
+    public void ShouldTurnOnceYouArriveWhenTheyStoppedFirst()
+    {
+        var mimic = Started();
+        mimic.Plan("@bIJQAJ0.0\u0002JJ/mv 4,2,0.0/\u0002", Me(7, 2), Now);   // they step west: you walk to 6,2
+        mimic.Plan("@bIJPAJ0.0\u0002PAPA/\u0002", Me(7, 2), Now.AddMilliseconds(500))   // they stop on 4,2 facing 4
+            .Should().BeEmpty("you have not reached 6,2 yet");
+
+        var turn = mimic.Tick(Me(6, 2), Now.AddMilliseconds(1000));
+        turn.Select(t => t.Packet).Should().Equal("AO6 3");                  // face 4 from 6,2
+        mimic.Tick(Me(6, 2), Now.AddMilliseconds(1500)).Should().BeEmpty("sent once per pose");
+    }
+
+    [Fact]
+    public void ShouldWalkToTheRoomEdgeWhenTheKeptDistanceFallsOffTheMap()
+    {
+        // Captured 00:51:35-00:51:50: you started 11 tiles west of them; when they walked west your tile was at x = -2
+        // and the mime stood still. Mikee on 5,2, you on 1,2: the kept distance is 4 tiles west.
+        var mimic = new Mimic();
+        mimic.Start(Mikee, Me(1, 2), MimicPosition.KeepDistance, Now);
+
+        // Mikee steps to 2,2: your tile would be -2,2.
+        var walk = mimic.Plan("@bIJKJ0.0\u0002JJ/mv 2,2,0.0/\u0002", Me(1, 2), Now.AddSeconds(1)).Should().ContainSingle().Which;
+        walk.Packet.Should().Be("Su" + "H" + "J", "the nearest tile inside the room is 0,2");
+    }
+
+    [Fact]
+    public void ShouldTryAnotherTileWhenYouStopShort()
+    {
+        // Captured 00:46:59: walked toward 3,7, stopped on 3,8 and stayed there.
+        var mimic = Started(position: MimicPosition.Beside);
+        mimic.Plan("@bIJQAK0.0\u0002JJ/\u0002", Me(9, 3), Now).Should().ContainSingle()   // Mikee on 5,3: walk to 6,3
+            .Which.Packet.Should().Be("Su" + "RA" + "K");
+
+        mimic.Tick(Me(8, 3), Now.AddMilliseconds(1000)).Should().BeEmpty("on the way");
+        mimic.Tick(Me(7, 3), Now.AddMilliseconds(1500)).Should().BeEmpty("on the way");
+        mimic.Tick(Me(7, 3), Now.AddMilliseconds(3000)).Should().BeEmpty("only 1.5 s since the last step");
+
+        var retry = mimic.Tick(Me(7, 3), Now.AddMilliseconds(4100));
+        retry.Should().ContainSingle().Which.Activity.Should().Contain("blocked");
     }
 
     [Fact]
@@ -64,7 +128,7 @@ public class TestsForMimic
     [Fact]
     public void ShouldGiveUpWhenTheyCannotBeReached()
     {
-        // Captured: walled in by gold bars at 9,9, every walk was ignored and the mime tried a new tile every 1.5 s.
+        // Captured: walled in by gold bars at 9,9, every walk was ignored. Ticks every 1.5 s: a new tile every 3 s.
         var mimic = Started(position: MimicPosition.Beside);
         string? notice = null;
         mimic.Notice += n => notice = n;
@@ -125,6 +189,20 @@ public class TestsForMimic
 
         // Captured: → STOP AXDance, then the status loses "/dance/".
         mimic.Plan("@bIJQAJ0.0\u0002JJ/\u0002", Me(7, 2), Now).Select(a => a.Packet).Should().Equal("AXDance");
+    }
+
+    [Fact]
+    public void ShouldHoldUpTheSameVoteSign()
+    {
+        // Captured in the pool: → SIGN "Ah10", ← STATUS …/sign 10/.
+        var mimic = Started();
+        string Sign(string actions) => "@bIJQAJ0.0\u0002JJ" + actions + "\u0002";
+
+        mimic.Plan(Sign("/sign 10/"), Me(7, 2), Now).Select(a => a.Packet).Should().Equal("Ah10");
+        mimic.Plan(Sign("/sign 10/"), Me(7, 2), Now.AddMilliseconds(500)).Should().BeEmpty("still the same sign");
+        mimic.Plan(Sign("/sign 4/"), Me(7, 2), Now.AddSeconds(1)).Select(a => a.Packet).Should().Equal("Ah4");
+        mimic.Plan(Sign("/"), Me(7, 2), Now.AddSeconds(2)).Should().BeEmpty("sign put down");
+        mimic.Plan(Sign("/sign 4/"), Me(7, 2), Now.AddSeconds(3)).Select(a => a.Packet).Should().Equal("Ah4");
     }
 
     [Fact]
@@ -199,15 +277,49 @@ public class TestsForMimic
     }
 
     [Fact]
-    public void ShouldStopWhenTheyLeave()
+    public void ShouldStopWhenTheyLeaveAndDoNotComeBack()
     {
         var mimic = Started();
         string? reason = null;
         mimic.Stopped += r => reason = r;
 
         mimic.Plan("@]2", null, Now);
+        mimic.IsRunning.Should().BeTrue("they may come straight back, as people do in the pool");
 
+        mimic.Tick(Me(7, 2), Now.AddSeconds(61));
         mimic.IsRunning.Should().BeFalse();
         reason.Should().Contain("Mikee");
+    }
+
+    [Fact]
+    public void ShouldKeepCopyingThemUnderTheirNewSlot()
+    {
+        // Captured in the pool 01:06:39: LOGOUT @]1, then the same person in USERS as slot 5.
+        var mimic = Started();
+        mimic.Plan("@]2", Me(7, 2), Now);
+
+        // Someone else gets slot 2 meanwhile: not copied.
+        mimic.Plan("@bIJQAJ0.0\u0002JJ/mv 4,2,0.0/\u0002", Me(7, 2), Now.AddSeconds(1)).Should().BeEmpty();
+
+        // Mikee (user id 1) is back as slot 5 ("QA") on 5,2.
+        var back = new RoomUser(5, 1, "Mikee", "hd-180-1", "M", "", "", 5, 2);
+        mimic.Plan(RoomUsers.Build(new[] { back }), Me(7, 2), Now.AddSeconds(5));   // USERS, header included
+        mimic.Target!.Index.Should().Be(5);
+
+        // Their next step is copied again.
+        mimic.Plan("@bIQAQAJ0.0\u0002JJ/mv 4,2,0.0/\u0002", Me(7, 2), Now.AddSeconds(6))
+            .Should().ContainSingle().Which.Packet.Should().Be("Su" + "RA" + "J");   // 4 + 2 = 6,2
+    }
+
+    [Fact]
+    public void ShouldCarryTheSameDrink()
+    {
+        // Captured in the pool: "/carryd 19/", "/drink 19/" while sipping.
+        var mimic = Started();
+        string Carry(string actions) => "@bIJQAJ0.0\u0002JJ" + actions + "\u0002";
+
+        mimic.Plan(Carry("/carryd 19/"), Me(7, 2), Now).Select(a => a.Packet).Should().Equal("AP@B19");
+        mimic.Plan(Carry("/drink 19/"), Me(7, 2), Now.AddSeconds(1)).Should().BeEmpty("sipping the same drink");
+        mimic.Plan(Carry("/"), Me(7, 2), Now.AddSeconds(2)).Select(a => a.Packet).Should().Equal("AXCarryItem");
     }
 }

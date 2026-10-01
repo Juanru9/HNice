@@ -52,6 +52,15 @@ public interface ITcpInterceptorWorker
     /// <summary>Your avatar's slot in the current room, once identified.</summary>
     int? MyRoomIndex { get; }
 
+    /// <summary>The server put a drink in your hand, as the server itself reported it. Raised on a network thread.</summary>
+    event Action<string>? ServerGaveDrink;
+
+    /// <summary>When on, being kicked from a room takes you straight back in.</summary>
+    bool AutoRejoin { get; set; }
+
+    /// <summary>You were kicked from a room and sent back to it (room id). Raised on a network thread.</summary>
+    event Action<int>? Rejoining;
+
     /// <summary>Everyone in the current room except you.</summary>
     IReadOnlyList<RoomUser> RoomUsers { get; }
 
@@ -66,6 +75,15 @@ public interface ITcpInterceptorWorker
 
     /// <summary>Copies another Habbo's walking, gestures and chat through your connection.</summary>
     Mimic Mimic { get; }
+
+    /// <summary>Follows Wobble Squabble rounds in the pool.</summary>
+    WobbleTracker Wobble { get; }
+
+    /// <summary>When on, plays your Wobble Squabble rounds: one move per game status (see <see cref="WobbleAutoPlayer"/>).</summary>
+    bool AutoWobble { get; set; }
+
+    /// <summary>A move was sent for you on the plank (the PTM letter). Raised on a network thread.</summary>
+    event Action<char>? WobbleMoveSent;
 
     /// <summary>Requests catalogue pages from the server (null = all pages in the index), one per second.</summary>
     Task<int> FetchCatalogAsync(IEnumerable<string>? pages, IProgress<string>? progress, CancellationToken cancellationToken);
@@ -138,6 +156,14 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
 
     public Mimic Mimic { get; } = new();
 
+    public WobbleTracker Wobble { get; } = new();
+
+    public bool AutoWobble { get; set; }
+
+    public event Action<char>? WobbleMoveSent;
+
+    private readonly WobbleAutoPlayer _wobblePlayer = new();
+
     // Lets the mime notice a walk the server ignored (furni on that tile) even when the room is quiet.
     private Timer? _mimicTimer;
 
@@ -145,6 +171,20 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
         Catalog.FetchAsync(pages, SendPacketToServerAsync, progress, cancellationToken);
 
     public int? MyRoomIndex => _local.MyRoomIndex;
+
+    public event Action<string>? ServerGaveDrink
+    {
+        add => _local.ServerGaveDrink += value;
+        remove => _local.ServerGaveDrink -= value;
+    }
+
+    public bool AutoRejoin { get => _local.AutoRejoin; set => _local.AutoRejoin = value; }
+
+    public event Action<int>? Rejoining
+    {
+        add => _local.Rejoining += value;
+        remove => _local.Rejoining -= value;
+    }
 
     public event Action? RoomUsersChanged
     {
@@ -171,6 +211,24 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             if (!Mimic.IsRunning) return;
             foreach (var action in Mimic.Tick(MyStatus, DateTime.UtcNow)) _ = SendMimicAsync(action);
         }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        Wobble.Changed += OnWobbleChanged;
+    }
+
+    // Raised once per game packet, on the network thread; PT_STATUS comes every 0.3 s.
+    private void OnWobbleChanged()
+    {
+        if (!Wobble.IsLive)
+        {
+            _wobblePlayer.NewRound();
+            return;
+        }
+        if (!AutoWobble || Wobble.SlotOf(MyRoomIndex) is not { } slot) return;
+        var players = Wobble.Players;
+        if (players.Count < 2) return;
+
+        var move = _wobblePlayer.Choose(players[slot], players[1 - slot]);
+        _ = SendPacketToServerAsync(ServerPacketBuilder.WobbleMove(move));
+        WobbleMoveSent?.Invoke(move);
     }
 
     public async Task ExecuteAsync(string serverIp, int serverPort, int localPort, bool decryptPackets, CancellationToken cancellationToken)
@@ -368,6 +426,12 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                     foreach (var packet in packets)
                     {
                         AddInboundPacketLog(PacketEncoding.GetString(packet));
+                    }
+
+                    // Wobble Squabble rounds in the pool, for the Wobble tool.
+                    foreach (var packet in packets)
+                    {
+                        Wobble.Observe(packet);
                     }
 
                     // The mime answers what the person it copies just did.

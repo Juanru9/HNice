@@ -39,7 +39,7 @@
                     <TextBlock><Run FontFamily="{DynamicResource IconFont}" Text="&#xE805;" />  Walking</TextBlock>
                 </ToggleButton>
                 <ToggleButton Style="{StaticResource TogglePill}" IsChecked="{Binding CopyGestures}" Margin="0,0,6,6"
-                              ToolTip="Wave and dance when they do">
+                              ToolTip="Wave, dance, hold up the same vote sign and carry the same drink when they do (drinks only in public rooms)">
                     <TextBlock><Run FontFamily="{DynamicResource IconFont}" Text="&#xE76E;" />  Gestures</TextBlock>
                 </ToggleButton>
                 <ToggleButton Style="{StaticResource TogglePill}" IsChecked="{Binding CopySpeech}" Margin="0,0,6,6"

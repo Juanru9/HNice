@@ -28,6 +28,13 @@ public sealed class OutboundDecision
 ///   ← ROOM_READY    a new room: start over
 ///   → LOOKTO x y    sent when you click a Habbo: the person on that tile is "picked"
 ///
+/// Rejoin after a kick (any room):
+///   → 2 (room directory) isPublic(VL64) roomId(VL64) …   your client entering a room: remembered
+///     captured: @B H `nGD H (guest room 67512), @B I QH H (public room 33)
+///   ← LOGOUT, ← HOTEL_VIEW (@R) after the server walks you to the door = you were kicked,
+///     unless you just sent a leave request yourself (QUIT, room directory, TRYFLAT, GOTOFLAT)
+///   → client: ROOMFORWARD (D^) isPublic + room id, so your client walks back in through its normal entry
+///
 /// Fake furni (the server rejects requests for items it does not have, so they are answered locally):
 ///   → SETSTUFFDATA &lt;item&gt; TRUE, → CARRYDRINK &lt;drink&gt;
 ///   ← STUFFDATAUPDATE &lt;item&gt; TRUE … FALSE, ← STATUS …/carryd &lt;drink&gt;/
@@ -48,6 +55,13 @@ public sealed class LocalInteractions
     private const int NavNode = (int)IncomingPacketMessage.NAVNODEINFO;
     private const int UserLookChanged = 266; // index(VL64) figure[2] sex[2] motto[2]
     private const int WalkTo = 1269;         // the client's walk request: x(VL64) y(VL64)
+    private const int HotelView = (int)IncomingPacketMessage.CLC; // @R: back to the hotel view (sent on a kick)
+    private const int Quit = (int)OutcomingPacketMessage.QUIT;
+    private const int RoomDirectory = 2;     // first request when entering a room (captured: @B H `nGD H)
+    private const int TryFlat = (int)OutcomingPacketMessage.TRYFLAT;
+    private const int GoToFlat = (int)OutcomingPacketMessage.GOTOFLAT;
+
+    private static readonly TimeSpan LeaveWindow = TimeSpan.FromSeconds(3);
 
     private static readonly TimeSpan PendingUseWindow = TimeSpan.FromSeconds(10);
 
@@ -97,11 +111,29 @@ public sealed class LocalInteractions
     private string? _carriedDrink;
     private DateTime _carryUntil;
 
+    private bool _autoRejoin;
+    private (bool IsPublic, int Id)? _enteringRoom; // from your client's room directory request
+    private (bool IsPublic, int Id)? _currentRoom;  // set once the server says the room is ready
+    private DateTime _leavingUntil;
+
+    /// <summary>When on, being kicked from a room (sent to the hotel view without asking) takes you straight back in.</summary>
+    public bool AutoRejoin
+    {
+        get { lock (_sync) return _autoRejoin; }
+        set { lock (_sync) _autoRejoin = value; }
+    }
+
+    /// <summary>You were kicked from a room and HNice sent you back to it (room id). Raised on a network thread.</summary>
+    public event Action<int>? Rejoining;
+
     /// <summary>You clicked this Habbo in the game.</summary>
     public event Action<RoomUser>? UserPicked;
 
     /// <summary>People entered, left, moved rooms or changed clothes.</summary>
     public event Action? UsersChanged;
+
+    /// <summary>The server put a drink in your hand (its own STATUS about you said "drink" or "carryd"). Raised on a network thread.</summary>
+    public event Action<string>? ServerGaveDrink;
 
     /// <summary>Your avatar's slot in the current room (from USERS), once identified.</summary>
     public int? MyRoomIndex { get { lock (_sync) return _myIndex; } }
@@ -238,6 +270,18 @@ public sealed class LocalInteractions
                     decision = HandleCarryDrink(drink[0]);
                     break;
 
+                case RoomDirectory:
+                    _enteringRoom = TryReadRoomDirectory(text[2..], out var room) ? room : null;
+                    _leavingUntil = DateTime.UtcNow + LeaveWindow;
+                    decision = OutboundDecision.Forward;
+                    break;
+
+                case Quit or TryFlat or GoToFlat:
+                    // You are leaving on your own: the hotel view that may follow is not a kick.
+                    _leavingUntil = DateTime.UtcNow + LeaveWindow;
+                    decision = OutboundDecision.Forward;
+                    break;
+
                 default:
                     decision = OutboundDecision.Forward;
                     break;
@@ -263,6 +307,22 @@ public sealed class LocalInteractions
         }
         decision.InjectLater.Add((StuffDataUpdate(machine.Id, "FALSE"), MachineAnimation));
         return decision;
+    }
+
+    // Room directory body: isPublic(VL64) roomId(VL64) then a trailing field (captured: H `nGD H, I QH H).
+    private static bool TryReadRoomDirectory(string body, out (bool IsPublic, int Id) room)
+    {
+        room = default;
+        try
+        {
+            var reader = new IncomingPacketReader(body);
+            room = (reader.ReadInt() == 1, reader.ReadInt());
+            return room.Id > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 
     private FakeMachine? MachineUsedFrom((int X, int Y) tile) =>
@@ -327,6 +387,8 @@ public sealed class LocalInteractions
         var body = text[2..];
 
         var usersChanged = false;
+        string? serverDrink = null;
+        int? rejoin = null;
         byte[] result = packet;
 
         lock (_sync)
@@ -336,6 +398,20 @@ public sealed class LocalInteractions
                 case RoomReady:
                     ClearRoom();
                     _flatId = body.Split(' ') is [_, var id] && int.TryParse(id, out var flatId) ? flatId : null;
+                    // ROOM_READY carries the same id the client asked for ("newbie_lobby 33", "model_b 67512").
+                    _currentRoom = _enteringRoom is { } entering && entering.Id == _flatId ? entering : null;
+                    _leavingUntil = DateTime.MinValue; // you have arrived: a hotel view from now on is not your doing
+                    usersChanged = true;
+                    break;
+
+                case HotelView:
+                    if (_autoRejoin && _currentRoom is { } kickedFrom && DateTime.UtcNow > _leavingUntil)
+                    {
+                        rejoin = kickedFrom.Id;
+                        inject?.Add((ClientPacketBuilder.RoomForward(kickedFrom.IsPublic, kickedFrom.Id), TimeSpan.Zero));
+                    }
+                    ClearRoom();
+                    _currentRoom = null;
                     usersChanged = true;
                     break;
 
@@ -366,13 +442,27 @@ public sealed class LocalInteractions
                     break;
 
                 case Status when RoomStatus.TryParse(body, out var entries):
+                    // Read before ApplyStatus, which may add a locally given drink to your entry.
+                    serverDrink = DrinkInHand(entries);
                     result = ApplyStatus(packet, entries, inject);
                     break;
             }
         }
 
         if (usersChanged) UsersChanged?.Invoke();
+        if (serverDrink is not null) ServerGaveDrink?.Invoke(serverDrink);
+        if (rejoin is { } room) Rejoining?.Invoke(room);
         return result;
+    }
+
+    // "/drink 19/" while it is handed over, then "/carryd 19/" while you hold it.
+    private string? DrinkInHand(List<StatusEntry> entries)
+    {
+        var mine = entries.FirstOrDefault(e => e.Index == _myIndex);
+        if (mine is null) return null;
+        var action = mine.Actions.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(a => a.StartsWith("carryd ", StringComparison.Ordinal) || a.StartsWith("drink ", StringComparison.Ordinal));
+        return action?[(action.IndexOf(' ') + 1)..];
     }
 
     private byte[] ApplyStatus(byte[] packet, List<StatusEntry> entries, List<(string Packet, TimeSpan Delay)>? inject)

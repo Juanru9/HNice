@@ -1,0 +1,53 @@
+<UserControl x:Class="HNice.View.Tools.WobbleToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <CheckBox Content="Play my rounds for me" IsChecked="{Binding AutoPlay}"
+                  ToolTip="When you are on the plank: rebalance once when about to fall, lean back when tilted, walk up to the other player and hit them." />
+        <TextBlock Text="{Binding LastMove}" Margin="0,6,0,12"
+                   FontSize="{StaticResource TextSm}" Foreground="{StaticResource Success}" />
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="ON THE PLANK" />
+        <StackPanel Style="{StaticResource Section}">
+            <TextBlock Text="{Binding RoundState}" FontSize="{StaticResource TextSm}" Foreground="{StaticResource TextMid}" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding Players}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,12">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Move}" FontSize="{StaticResource TextXs}"
+                                           Foreground="{StaticResource TextLo}" VerticalAlignment="Center" />
+                                <TextBlock>
+                                    <Run Text="{Binding Side, Mode=OneWay}" Foreground="{StaticResource TextLo}" />
+                                    <Run Text="  " />
+                                    <Run Text="{Binding Name, Mode=OneWay}" Foreground="{StaticResource TextHi}" />
+                                </TextBlock>
+                            </DockPanel>
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding Danger, Mode=OneWay}" Height="6" Margin="0,5,0,3"
+                                         ToolTip="Falls at 100" />
+                            <TextBlock FontSize="{StaticResource TextXs}" Foreground="{StaticResource TextLo}">
+                                <Run Text="Balance:" />
+                                <Run Text="{Binding Lean, Mode=OneWay}" />
+                                <Run Text="  ·  position" />
+                                <Run Text="{Binding Position, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="RESULTS" />
+        <ItemsControl ItemsSource="{Binding Results}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" FontFamily="{StaticResource MonoFont}" FontSize="{StaticResource TextXs}"
+                               Foreground="{StaticResource TextMid}" Margin="0,0,0,3" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="Reads the game's own packets and shows what the server says: both players' balance, place and last move, then who won. With auto play on, it sends one move (the same PTM request as your client) each time the server reports the plank, only while you are playing. The server still works out balance, hits and the winner." />
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,14 @@
+<UserControl x:Class="HNice.View.Tools.RejoinToolView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <CheckBox Content="Go back into the room when I get kicked" IsChecked="{Binding AutoRejoin}"
+                  ToolTip="Any room: yours, someone else's or a public room. Leaving on your own (hotel view button, another room) is not a kick." />
+
+        <TextBlock Text="{Binding LastRejoin}" TextWrapping="Wrap" Margin="0,10,0,0"
+                   FontSize="{StaticResource TextSm}" Foreground="{StaticResource Success}" />
+
+        <TextBlock Style="{StaticResource Disclosure}"
+                   Text="When the server sends you to the hotel view without you asking, your client is told to enter that room again and does it through its normal requests, like clicking it in the navigator. The server still applies bans, doorbells, passwords and full rooms." />
+    </StackPanel>
+</UserControl>

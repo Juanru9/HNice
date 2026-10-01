@@ -15,6 +15,8 @@
         <DataTemplate DataType="{x:Type vm:CreditsViewModel}"><tools:CreditsToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:BadgesViewModel}"><tools:BadgesToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:DrinksViewModel}"><tools:DrinksToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RejoinViewModel}"><tools:RejoinToolView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:WobbleViewModel}"><tools:WobbleToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:FurnitureViewModel}"><tools:FurniToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:RoomDecorViewModel}"><tools:PostersToolView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:WarpViewModel}"><tools:WarpToolView /></DataTemplate>

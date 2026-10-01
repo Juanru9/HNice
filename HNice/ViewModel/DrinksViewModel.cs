@@ -3,15 +3,101 @@ using HNice.Model.Packets;
 using HNice.Service;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace HNice.ViewModel;
 
+/// <summary>What the server did with the last drink request.</summary>
+public enum OrderState
+{
+    None,
+    Waiting,
+    Accepted,
+    Failed
+}
+
 /// <summary>
-/// Drops a drink machine (ACTIVEOBJECTS) on your own screen. The position follows your avatar
-/// automatically while you walk, so the machine lands at your feet.
+/// Orders a real drink from the server, or drops a drink machine (ACTIVEOBJECTS) on your own screen.
+/// The machine's position follows your avatar automatically while you walk, so it lands at your feet.
 /// </summary>
 class DrinksViewModel : BaseViewModel
 {
+    /// <summary>Every hand item the hotel names (handitemN in the game's external texts), except 20, the camera.</summary>
+    public Dictionary<string, int> Drinks { get; } = new()
+    {
+        { "Habbo Cola", 19 },
+        { "Lime Habbo Soda", 22 },
+        { "Beetroot Habbo Soda", 23 },
+        { "1978 Fizzy Drink", 24 },
+        { "Love Potion", 25 },
+        { "Glukko Pop", 26 },
+        { "Fesh", 46 },
+        { "Tea", 1 },
+        { "Juice", 2 },
+        { "Carrot", 3 },
+        { "Ice cream", 4 },
+        { "Milk", 5 },
+        { "Blackcurrant", 6 },
+        { "Water", 7 },
+        { "Black coffee", 8 },
+        { "Water (glass)", 9 },
+        { "Cream", 10 },
+        { "Mocha", 11 },
+        { "Macchiato", 12 },
+        { "Espresso", 13 },
+        { "Filter coffee", 14 },
+        { "Iced coffee", 15 },
+        { "Cappuccino", 16 },
+        { "Java", 17 },
+        { "Tap water", 18 },
+        { "Hamburger", 21 },
+    };
+
+    private int _selectedDrink = 19;
+    public int SelectedDrink
+    {
+        get => _selectedDrink;
+        set { if (_selectedDrink != value) { _selectedDrink = value; OnPropertyChanged(); } }
+    }
+
+    private bool _keepDrink;
+    /// <summary>Orders the drink again before the server takes it away (~5 minutes).</summary>
+    public bool KeepDrink
+    {
+        get => _keepDrink;
+        set
+        {
+            if (_keepDrink == value) return;
+            _keepDrink = value;
+            OnPropertyChanged();
+            if (value) _renewTimer.Start(); else _renewTimer.Stop();
+        }
+    }
+
+    private string _orderStatus = string.Empty;
+    public string OrderStatus
+    {
+        get => _orderStatus;
+        private set { _orderStatus = value; OnPropertyChanged(); }
+    }
+
+    private OrderState _orderState;
+    public OrderState OrderState
+    {
+        get => _orderState;
+        private set { _orderState = value; OnPropertyChanged(); }
+    }
+
+    public ICommand OrderDrinkCommand { get; }
+
+    // Captured: the server answers in under half a second; drinks are taken away after 300 s.
+    private static readonly TimeSpan ServerAnswerWindow = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RenewEvery = TimeSpan.FromSeconds(270);
+
+    private readonly DispatcherTimer _renewTimer;
+    private readonly DispatcherTimer _answerTimer;
+    private int? _awaitedDrink;
+
     public Dictionary<string, string> FurniName { get; } = new()
     {
         { "Habbo Cola", "md_limukaappi" },
@@ -73,7 +159,52 @@ class DrinksViewModel : BaseViewModel
         CustomDrinkMachineGeneratorCommand = new RelayCommand(async _ => await Place(CustomFurniName), _ => !string.IsNullOrWhiteSpace(CustomFurniName));
         worker.OnUpdateCoords += UpdateMachineCoords;
         _selectedFurni = FurniName.First().Value;
+
+        OrderDrinkCommand = new RelayCommand(async _ => await OrderDrink());
+        _renewTimer = new DispatcherTimer { Interval = RenewEvery };
+        _renewTimer.Tick += async (_, _) => await OrderDrink();
+        _answerTimer = new DispatcherTimer { Interval = ServerAnswerWindow };
+        _answerTimer.Tick += (_, _) => NoServerAnswer();
+        worker.ServerGaveDrink += OnServerGaveDrink;
     }
+
+    private Task OrderDrink()
+    {
+        _awaitedDrink = SelectedDrink;
+        _answerTimer.Stop();
+        _answerTimer.Start();
+        Show(OrderState.Waiting, $"Asked for {DrinkName(SelectedDrink)}, waiting for the server…");
+        return OnSendToServer(ServerPacketBuilder.CarryDrink(SelectedDrink));
+    }
+
+    // Raised from the network thread.
+    private void OnServerGaveDrink(string drink)
+    {
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (_awaitedDrink is not { } awaited || drink != awaited.ToString()) return;
+            _awaitedDrink = null;
+            _answerTimer.Stop();
+            Show(OrderState.Accepted, $"Accepted by the server at {DateTime.Now:HH:mm:ss}: {DrinkName(awaited)} is in your hand, everyone sees it."
+                                      + (KeepDrink ? " Ordered again in 4½ minutes." : ""));
+        });
+    }
+
+    private void NoServerAnswer()
+    {
+        _answerTimer.Stop();
+        if (_awaitedDrink is not { } awaited) return;
+        _awaitedDrink = null;
+        Show(OrderState.Failed, $"The server ignored it: no {DrinkName(awaited)} in your hand after {ServerAnswerWindow.TotalSeconds:0} s.");
+    }
+
+    private void Show(OrderState state, string text)
+    {
+        OrderState = state;
+        OrderStatus = text;
+    }
+
+    private string DrinkName(int id) => Drinks.FirstOrDefault(d => d.Value == id).Key is { } name ? $"{name} ({id})" : $"drink {id}";
 
     private const string MachineId = "999000002";
 

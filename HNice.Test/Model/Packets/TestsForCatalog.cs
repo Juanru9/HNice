@@ -66,6 +66,14 @@ public class TestsForCatalog
     }
 
     [Fact]
+    public void ActiveObjectShouldEndLikeTheLiveFurniSoItNeverExpires()
+    {
+        // Live: …md_limukaappi_liq[2]PARAIIJ0.0[2][2][2]HHHFALSE[2]HMM — without "HMM" the client shows "Expira en 0 minutos".
+        ClientPacketBuilder.ActiveObject("233786", 1, "md_limukaappi", 4, 6, 2, state: "FALSE")
+            .Should().EndWith("[2][2][2]HHHFALSE[2]HMM".Replace("[2]", "\u0002"));
+    }
+
+    [Fact]
     public void ShouldReadThePageId()
     {
         CatalogPage.PageId(string.Join((char)13, "i:front_page", "n:front_page", "l:ctlg_frontpage2")).Should().Be("front_page");
