@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore HNice.sln
+
+      - name: Build
+        run: dotnet build HNice.sln -c Release --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test HNice.Test -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults
+          --logger "trx;LogFileName=results.trx"
+
+      - name: Coverage report
+        if: always()
+        uses: danielpalme/ReportGenerator-GitHub-Action@5
+        with:
+          reports: TestResults/**/coverage.cobertura.xml
+          targetdir: CoverageReport
+          reporttypes: HtmlInline;MarkdownSummaryGithub;Badges
+
+      - name: Coverage summary
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path CoverageReport/SummaryGithub.md) {
+            Get-Content CoverageReport/SummaryGithub.md | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-and-coverage
+          path: |
+            TestResults/**/*.trx
+            CoverageReport/
+
+      - name: Upload coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge
+          path: CoverageReport/badge_linecoverage.svg
+
+  # Keeps the README coverage badge current: main's line coverage as an SVG on the "badges" branch.
+  publish-badge:
+    name: Publish coverage badge
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-badge
+          path: ${{ runner.temp }}/badge
+
+      - name: Commit badge to the badges branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth 1 origin badges; then
+            git switch -c badges FETCH_HEAD
+          else
+            git switch --orphan badges
+          fi
+          git rm -rq --ignore-unmatch .
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp "${{ runner.temp }}/badge/badge_linecoverage.svg" coverage.svg
+          git add coverage.svg
+          if git diff --cached --quiet; then
+            echo "Coverage badge unchanged."
+          else
+            git commit -m "Update coverage badge for ${GITHUB_SHA::7}"
+            git push origin badges
+          fi
