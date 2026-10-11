@@ -33,7 +33,9 @@ public static class ServerPacketBuilder
 
     /// <summary>
     /// PTM (Ar): your Wobble Squabble move, one plain letter. Captured live in md_a: ArA (lean left).
-    /// Letters: A lean left, D lean right, W hit left, E hit right, X step forward, S step back, 0 rebalance.
+    /// Letters (effects measured live, see FINDINGS.md): A lean left (balance down), D lean right (balance up),
+    /// W hit pushing the other player right (up), E hit pushing them left (down), X step down the plank (position - 1),
+    /// S step up (position + 1), 0 rebalance.
     /// The server works out balance, hits and the winner.
     /// </summary>
     public static string WobbleMove(char move) => ((int)OutcomingPacketMessage.PTM).EncodeB64() + move;

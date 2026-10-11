@@ -32,15 +32,15 @@ public sealed class WobbleTracker
     private const int BothLose = (int)IncomingPacketMessage.PT_BOTHLOSE;
     private const int Timeout = (int)IncomingPacketMessage.PT_TIMEOUT;
 
-    /// <summary>Move letters (Kepler WobbleSquabbleMove).</summary>
+    /// <summary>Move letters (Kepler WobbleSquabbleMove), named by what they did on the live server (FINDINGS.md).</summary>
     public static string MoveName(string letter) => letter switch
     {
         "A" => "lean left",
         "D" => "lean right",
-        "W" => "hit left",
-        "E" => "hit right",
-        "X" => "step forward",
-        "S" => "step back",
+        "W" => "hit, pushing right",
+        "E" => "hit, pushing left",
+        "X" => "step left",
+        "S" => "step right",
         "0" => "rebalance",
         _ => "—",
     };
@@ -50,12 +50,16 @@ public sealed class WobbleTracker
     private WobblePlayer[] _players = Array.Empty<WobblePlayer>();
     private bool _ended;
     private bool _live;
+    private int _round;
 
     /// <summary>The players of the round being played, or an empty list between rounds.</summary>
     public IReadOnlyList<WobblePlayer> Players { get { lock (_sync) return _players; } }
 
     /// <summary>Between PT_START and the round being decided: the only time moves count.</summary>
     public bool IsLive { get { lock (_sync) return _live; } }
+
+    /// <summary>Counts rounds: goes up each time a new round is prepared.</summary>
+    public int Round { get { lock (_sync) return _round; } }
 
     /// <summary>Your slot (0 = left, 1 = right) when you are on the plank, otherwise null.</summary>
     public int? SlotOf(int? roomIndex)
@@ -66,6 +70,9 @@ public sealed class WobbleTracker
 
     /// <summary>Players, balance or moves changed. Raised on a network thread.</summary>
     public event Action? Changed;
+
+    /// <summary>A PT_STATUS was read: the moment to send the next move. Raised on a network thread, after <see cref="Changed"/>.</summary>
+    public event Action? StatusRead;
 
     /// <summary>A round was decided. Raised on a network thread.</summary>
     public event Action<WobbleResult>? RoundEnded;
@@ -90,6 +97,7 @@ public sealed class WobbleTracker
                         // Kepler: slot 0 starts at -3, slot 1 at 4, both balanced.
                         _players = new[] { new WobblePlayer(0, rooms[0], -3, 0, "-"), new WobblePlayer(1, rooms[1], 4, 0, "-") };
                         _ended = false;
+                        _round++;
                     }
                     _live = header == Start && !_ended;
                     break;
@@ -122,6 +130,7 @@ public sealed class WobbleTracker
         }
 
         Changed?.Invoke();
+        if (header == Status) StatusRead?.Invoke();
         if (result is not null) RoundEnded?.Invoke(result);
     }
 

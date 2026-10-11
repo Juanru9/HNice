@@ -149,7 +149,7 @@ class ImitateViewModel : BaseViewModel
     private string? MyUserObjectTail()
     {
         var raw = Worker.CurrentPlayer?.RawBody;
-        if (string.IsNullOrEmpty(raw) || raw.Contains('=')) return null;
+        if (string.IsNullOrEmpty(raw) || !raw.Contains(Constants.PACKET_SPLITTER)) return null;
         try
         {
             var reader = new IncomingPacketReader(raw);

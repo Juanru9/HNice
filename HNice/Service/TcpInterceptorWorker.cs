@@ -163,6 +163,7 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
     public event Action<char>? WobbleMoveSent;
 
     private readonly WobbleAutoPlayer _wobblePlayer = new();
+    private int _wobbleRound = -1;
 
     // Lets the mime notice a walk the server ignored (furni on that tile) even when the room is quiet.
     private Timer? _mimicTimer;
@@ -211,18 +212,24 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
             if (!Mimic.IsRunning) return;
             foreach (var action in Mimic.Tick(MyStatus, DateTime.UtcNow)) _ = SendMimicAsync(action);
         }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
-        Wobble.Changed += OnWobbleChanged;
+        Wobble.StatusRead += OnWobbleStatus;
     }
 
-    // Raised once per game packet, on the network thread; PT_STATUS comes every 0.3 s.
-    private void OnWobbleChanged()
+    // One move per PT_STATUS (every 0.3 s), on the network thread. PT_START sends nothing: it can arrive twice
+    // within 2 ms and carries no balance yet.
+    private void OnWobbleStatus()
     {
-        if (!Wobble.IsLive)
+        if (!AutoWobble || !Wobble.IsLive) return;
+        var mySlot = Wobble.SlotOf(MyRoomIndex);
+        var round = Wobble.Round;
+        if (round != _wobbleRound)
         {
+            _wobbleRound = round;
             _wobblePlayer.NewRound();
-            return;
+            _logger.LogInformation("Wobble: auto play, round {Round}: you are {Side} (your room index {Index})",
+                round, mySlot switch { 0 => "left", 1 => "right", _ => "not on the plank" }, MyRoomIndex?.ToString() ?? "unknown");
         }
-        if (!AutoWobble || Wobble.SlotOf(MyRoomIndex) is not { } slot) return;
+        if (mySlot is not { } slot) return;
         var players = Wobble.Players;
         if (players.Count < 2) return;
 
@@ -585,8 +592,8 @@ public class TcpInterceptorWorker : IDisposable, ITcpInterceptorWorker
                 case IncomingPacketMessage.USERS:
                     // Set Dynamic user ID set in a new room
                     var player = _playerInfo;
-                    if (player is null) break;
-                    var userData = ParseIncoming(packetBytes).PacketContent.FirstOrDefault(content => content.Contains(player.HabboName));
+                    if (player?.HabboName is not { Length: > 0 } myName) break;
+                    var userData = ParseIncoming(packetBytes).PacketContent.FirstOrDefault(content => content.Contains(myName));
                     if (userData is not null && userData.Length >= 2)
                     {
                         player.DynamicRoomID = userData.Substring(0, 2);

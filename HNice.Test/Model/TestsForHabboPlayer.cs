@@ -24,6 +24,20 @@ public class TestsForHabboPlayer
         player.DirectMail.Should().Be(0);
     }
 
+    [Fact]
+    public void ShouldParseAUserObjectWithAPoolFigure()
+    {
+        // Captured 2026-10-02 01:28:50: the pool look "ch=s02/..." contains '=' but this is still the current format.
+        var body = "`j]ABatemanhd-195-1021.ch-260-1314.lg-281-1189.sh-300-1314.ha-1003-1189MHch=s02/238,238,238HHIIIIIIHHI";
+
+        var player = new HabboPlayer(body);
+
+        player.UserId.Should().Be(23976);
+        player.HabboName.Should().Be("Bateman");
+        player.HabboSex.Should().Be("M");
+        player.PhFigure.Should().Be("ch=s02/238,238,238");
+    }
+
     [Theory]
     [InlineData("hUuoG", 8123732)]
     [InlineData("RB", 10)]

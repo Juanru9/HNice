@@ -26,7 +26,9 @@ public sealed class HabboPlayer
     public HabboPlayer(string packetData)
     {
         RawBody = packetData;
-        if (!packetData.Contains('='))
+        // The current format separates fields with chr(2). Only the old key=value lines lack it: a figure such as
+        // the pool look "ch=s02/238,238,238" also contains '=', so '=' alone does not tell them apart.
+        if (packetData.Contains(Constants.PACKET_SPLITTER) || !packetData.Contains('='))
         {
             ParseUserObject(packetData);
             return;
